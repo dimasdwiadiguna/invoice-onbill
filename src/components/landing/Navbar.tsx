@@ -31,12 +31,7 @@ export default function Navbar() {
 
         {/* Logo */}
         <a href="/" className="flex items-center select-none">
-          <span className="text-xl font-extrabold tracking-tight text-primary-teal">
-            On
-          </span>
-          <span className="text-xl font-extrabold tracking-tight text-primary-dark">
-            bill
-          </span>
+          <img src="/logo-full.png" alt="Onbill" className="h-8 w-auto" />
         </a>
 
         {/* Desktop nav */}

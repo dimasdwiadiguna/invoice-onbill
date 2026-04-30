@@ -44,8 +44,8 @@ export default function HeroSection() {
   }, [])
 
   return (
-    <section className="relative min-h-screen pt-16 bg-light-cream overflow-hidden flex items-center">
-      <div className="max-w-6xl mx-auto px-6 py-12 w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+    <section className="relative pt-16 bg-light-cream overflow-hidden flex items-center">
+      <div className="max-w-6xl mx-auto px-6 xl:py-12 py-12 w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
         {/* ── Left: Copy ─────────────────────────────────────── */}
         <div className="space-y-7">

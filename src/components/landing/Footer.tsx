@@ -63,8 +63,7 @@ export default function Footer() {
           {/* Brand column */}
           <div className="col-span-2 lg:col-span-1">
             <a href="/" className="inline-flex items-center mb-4">
-              <span className="text-xl font-extrabold tracking-tight text-primary-teal">On</span>
-              <span className="text-xl font-extrabold tracking-tight text-white">bill</span>
+              <img src="/logo-white.png" alt="Onbill" className="h-8" />
             </a>
             <p className="text-sm text-light-gray leading-relaxed mb-6 max-w-[220px]">
               Invoice profesional dengan kalkulasi pajak Indonesia otomatis untuk freelancer dan usaha kecil.
