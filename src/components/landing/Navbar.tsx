@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Logo } from '@/components/ui/Logo'
 
 const NAV_LINKS = [
   { label: 'Fitur', href: '#fitur' },
@@ -31,7 +32,7 @@ export default function Navbar() {
 
         {/* Logo */}
         <a href="/" className="flex items-center select-none">
-          <img src="/logo-full.png" alt="Onbill" className="h-8 w-auto" />
+          <Logo variant="full" height={24} />
         </a>
 
         {/* Desktop nav */}
