@@ -10,8 +10,7 @@ import { Toast } from '@/components/ui/Toast'
 type ToastState = { message: string; type: 'error' | 'success' } | null
 
 export default function LoginPage() {
-  const router   = useRouter()
-  const supabase = createClient()
+  const router = useRouter()
 
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -35,6 +34,7 @@ export default function LoginPage() {
     setErrors({})
     setLoading(true)
 
+    const supabase = createClient()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {

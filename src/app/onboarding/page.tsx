@@ -75,8 +75,7 @@ function OptionCard({
 
 /* ─── Main page ──────────────────────────────────────────────── */
 export default function OnboardingPage() {
-  const router   = useRouter()
-  const supabase = createClient()
+  const router = useRouter()
 
   const [checking,    setChecking]    = useState(true)
   const [userId,      setUserId]      = useState<string | null>(null)
@@ -92,6 +91,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     async function init() {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
 
@@ -132,6 +132,7 @@ export default function OnboardingPage() {
 
     setSaving(true)
 
+    const supabase = createClient()
     const patch: Record<string, unknown> = {
       entity_type: entityType,
       has_npwp: entityType === 'individual' ? (hasNpwp ?? false) : false,
