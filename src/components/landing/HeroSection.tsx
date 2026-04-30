@@ -45,14 +45,14 @@ export default function HeroSection() {
 
   return (
     <section className="relative min-h-screen pt-16 bg-light-cream overflow-hidden flex items-center">
-      <div className="max-w-6xl mx-auto px-6 py-20 w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+      <div className="max-w-6xl mx-auto px-6 py-12 w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
         {/* ── Left: Copy ─────────────────────────────────────── */}
         <div className="space-y-7">
 
           {/* Headline */}
           <h1
-            className="text-4xl lg:text-5xl xl:text-[3.25rem] font-extrabold text-primary-dark leading-[1.15] tracking-tight"
+            className="text-5xl lg:text-[4rem] xl:text-[4.25rem] leading-none font-extrabold text-primary-dark leading-[1.15] tracking-tight"
             style={{ animation: 'fadeInUp 0.55s ease both' }}
           >
             Kamu fokus{' '}
