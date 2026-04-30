@@ -52,6 +52,8 @@ function LinkedInIcon() {
   )
 }
 
+import { Logo } from '@/components/ui/Logo'
+
 export default function Footer() {
   return (
     <footer className="bg-dark-charcoal pt-16 pb-8">
@@ -63,8 +65,7 @@ export default function Footer() {
           {/* Brand column */}
           <div className="col-span-2 lg:col-span-1">
             <a href="/" className="inline-flex items-center mb-4">
-              <span className="text-xl font-extrabold tracking-tight text-primary-teal">On</span>
-              <span className="text-xl font-extrabold tracking-tight text-white">bill</span>
+              <Logo variant="white" height={24} />
             </a>
             <p className="text-sm text-light-gray leading-relaxed mb-6 max-w-[220px]">
               Invoice profesional dengan kalkulasi pajak Indonesia otomatis untuk freelancer dan usaha kecil.

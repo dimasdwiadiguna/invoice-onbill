@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatNPWP } from '@/lib/tax'
 import { Toast } from '@/components/ui/Toast'
+import { Logo } from '@/components/ui/Logo'
 
 type EntityType = 'individual' | 'cv' | 'pt'
 type ToastState = { message: string; type: 'error' | 'success' } | null
@@ -172,8 +173,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-light-cream flex flex-col items-center justify-center px-4 py-12">
       {/* Logo */}
       <a href="/" className="mb-10 flex items-center select-none">
-        <span className="text-2xl font-extrabold tracking-tight text-primary-teal">On</span>
-        <span className="text-2xl font-extrabold tracking-tight text-primary-dark">bill</span>
+        <Logo variant="full" height={28} />
       </a>
 
       <div className="w-full max-w-md bg-white rounded-2xl border border-border shadow-sm px-8 py-10">
