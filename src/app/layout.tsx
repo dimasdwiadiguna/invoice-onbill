@@ -10,7 +10,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Onbill – Invoice Generator untuk Freelancer Indonesia",
+  title: "Onbill – Manajemen Invoice untuk Freelancer Indonesia",
   description:
     "Buat invoice profesional dengan pajak Indonesia otomatis (PPh 21, PPh 23, PPN) dalam 3 menit.",
 };
