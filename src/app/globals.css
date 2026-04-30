@@ -45,8 +45,39 @@
   --border: #E5E7EB;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--white);
   color: var(--primary-dark);
   font-family: var(--font-sans);
+}
+
+/* ─── Keyframes ─────────────────────────────────────────────── */
+
+@keyframes floatBadge1 {
+  0%, 100% { transform: translateY(0px) rotate(-2deg); }
+  50%       { transform: translateY(-10px) rotate(-2deg); }
+}
+
+@keyframes floatBadge2 {
+  0%, 100% { transform: translateY(0px) rotate(2deg); }
+  50%       { transform: translateY(-8px) rotate(2deg); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ─── Custom utilities ──────────────────────────────────────── */
+
+@utility animate-float-1 {
+  animation: floatBadge1 3.5s ease-in-out infinite;
+}
+
+@utility animate-float-2 {
+  animation: floatBadge2 4.2s ease-in-out 0.8s infinite;
 }
