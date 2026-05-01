@@ -13,7 +13,7 @@ export function AppShell({ userName, userPlan, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen bg-very-light-gray overflow-hidden">
+    <div className="flex h-[100dvh] bg-very-light-gray overflow-hidden">
       <Sidebar
         userName={userName}
         userPlan={userPlan}
@@ -23,7 +23,7 @@ export function AppShell({ userName, userPlan, children }: Props) {
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Mobile top bar */}
-        <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-white border-b border-border flex-shrink-0">
+        <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-white border-b border-border flex-shrink-0 z-10">
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 -ml-2 text-medium-gray hover:text-primary-dark"
@@ -36,7 +36,7 @@ export function AppShell({ userName, userPlan, children }: Props) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overscroll-none">
           {children}
         </main>
       </div>
