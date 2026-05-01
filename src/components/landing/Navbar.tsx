@@ -51,13 +51,13 @@ export default function Navbar() {
         {/* Desktop CTAs */}
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="/masuk"
+            href="/login"
             className="text-sm font-semibold text-primary-dark border border-border rounded-xl px-4 py-2 hover:border-primary-teal hover:text-primary-teal transition-all duration-200"
           >
             Masuk
           </a>
           <a
-            href="/daftar"
+            href="/register"
             className="text-sm font-semibold text-white bg-primary-teal rounded-xl px-4 py-2 hover:bg-primary-teal/90 transition-all duration-200 shadow-sm"
           >
             Daftar Gratis
@@ -93,10 +93,10 @@ export default function Navbar() {
             </a>
           ))}
           <div className="flex flex-col gap-2 pt-2 border-t border-border">
-            <a href="/masuk" className="text-sm font-semibold text-center text-primary-dark border border-border rounded-xl px-4 py-2.5">
+            <a href="/login" className="text-sm font-semibold text-center text-primary-dark border border-border rounded-xl px-4 py-2.5">
               Masuk
             </a>
-            <a href="/daftar" className="text-sm font-semibold text-center text-white bg-primary-teal rounded-xl px-4 py-2.5">
+            <a href="/register" className="text-sm font-semibold text-center text-white bg-primary-teal rounded-xl px-4 py-2.5">
               Daftar Gratis
             </a>
           </div>
