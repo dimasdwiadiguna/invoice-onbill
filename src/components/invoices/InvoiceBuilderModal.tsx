@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { calculateTax, formatRupiah, type UserProfile } from '@/lib/tax'
+import { calculateTax, formatRupiah, type UserProfile, type ClientEntityType } from '@/lib/tax'
 import { Toast } from '@/components/ui/Toast'
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -15,9 +15,9 @@ type TemplateId =
 
 type LineItem      = { id: string; description: string; quantity: string; unit_price: string }
 type TemplateFields = Record<string, string>
-type ClientEntry   = { id: string | null; name: string; address: string; npwp: string; pic_name: string; pic_email: string }
+type ClientEntry   = { id: string | null; name: string; address: string; npwp: string; pic_name: string; pic_email: string; entity_type: ClientEntityType }
 type ToastState    = { message: string; type: 'error' | 'success' } | null
-type DBClient      = { id: string; name: string; address: string | null; npwp: string | null; pic_name: string | null; pic_email: string | null }
+type DBClient      = { id: string; name: string; address: string | null; npwp: string | null; pic_name: string | null; pic_email: string | null; entity_type: ClientEntityType | null }
 
 export type Props = { onClose: () => void; onCreated: (invoiceId: string) => void }
 
@@ -77,6 +77,12 @@ const TEMPLATE_META_LABELS: Record<TemplateId, Record<string, string>> = {
   kreator_afiliasi:   { commission_pct: 'Komisi', aff_period: 'Periode', transaction_count: 'Transaksi', affiliate_code: 'Kode' },
   umkm_jasa:          { service_description: 'Layanan', location: 'Lokasi', client_pic: 'PIC' },
 }
+
+const ENTITY_OPTIONS: { value: ClientEntityType; label: string; desc: string }[] = [
+  { value: 'badan_usaha', label: 'Badan Usaha',  desc: 'PT, CV, Firma, Koperasi, dll.' },
+  { value: 'pemerintah',  label: 'Pemerintah',   desc: 'Instansi / lembaga pemerintah' },
+  { value: 'perorangan',  label: 'Perorangan',   desc: 'Individu / UMKM tanpa badan hukum' },
+]
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 function newItem(): LineItem {
@@ -243,7 +249,7 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
   const [template,       setTemplate]       = useState<TemplateId | null>(null)
   const [clientSearch,   setClientSearch]   = useState('')
   const [showDrop,       setShowDrop]       = useState(false)
-  const [clientEntry,    setClientEntry]    = useState<ClientEntry>({ id: null, name: '', address: '', npwp: '', pic_name: '', pic_email: '' })
+  const [clientEntry,    setClientEntry]    = useState<ClientEntry>({ id: null, name: '', address: '', npwp: '', pic_name: '', pic_email: '', entity_type: 'badan_usaha' })
   const [items,          setItems]          = useState<LineItem[]>([newItem()])
   const [templateFields, setTemplateFields] = useState<TemplateFields>({})
   const [memo,           setMemo]           = useState('')
@@ -262,7 +268,7 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
 
       const [{ data: profile }, { data: clientsData }] = await Promise.all([
         supabase.from('users').select('name, plan, entity_type, has_npwp, is_pkp, invoice_prefix').eq('id', user.id).single(),
-        supabase.from('clients').select('id, name, address, npwp, pic_name, pic_email').eq('user_id', user.id).is('deleted_at', null).order('name'),
+        supabase.from('clients').select('id, name, address, npwp, pic_name, pic_email, entity_type').eq('user_id', user.id).is('deleted_at', null).order('name'),
       ])
       const plan = profile?.plan ?? 'free'
       setUserProfile({ entity_type: profile?.entity_type ?? 'individual', has_npwp: profile?.has_npwp ?? false, is_pkp: profile?.is_pkp ?? false, plan, name: profile?.name ?? '', invoice_prefix: profile?.invoice_prefix ?? null })
@@ -288,10 +294,14 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
   }, [onClose])
 
   /* ── Derived ── */
-  const isPro     = userProfile.plan === 'pro'
-  const subtotal  = items.reduce((s, i) => s + itemSubtotal(i), 0)
-  const taxResult = calculateTax(subtotal > 0 ? subtotal : 0, userProfile)
-  const filtered  = dbClients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+  const isPro      = userProfile.plan === 'pro'
+  const subtotal   = items.reduce((s, i) => s + itemSubtotal(i), 0)
+  const taxResult  = calculateTax(subtotal > 0 ? subtotal : 0, userProfile, clientEntry.entity_type)
+  const filtered   = dbClients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+
+  /* True when the selected saved client has no entity_type set yet (migrated row). */
+  const selectedDbClient          = clientEntry.id ? dbClients.find(c => c.id === clientEntry.id) : null
+  const needsEntityConfirmation   = selectedDbClient?.entity_type == null
 
   const canStep1   = template !== null
   const canStep2   = clientEntry.name.trim().length > 0
@@ -301,7 +311,11 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
 
   /* ── Client helpers ── */
   function selectClient(c: DBClient) {
-    setClientEntry({ id: c.id, name: c.name, address: c.address ?? '', npwp: c.npwp ?? '', pic_name: c.pic_name ?? '', pic_email: c.pic_email ?? '' })
+    setClientEntry({
+      id: c.id, name: c.name, address: c.address ?? '', npwp: c.npwp ?? '',
+      pic_name: c.pic_name ?? '', pic_email: c.pic_email ?? '',
+      entity_type: c.entity_type ?? 'badan_usaha',
+    })
     setClientSearch(c.name); setShowDrop(false)
   }
   function setCE<K extends keyof ClientEntry>(k: K, v: ClientEntry[K]) {
@@ -343,10 +357,16 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
     let clientId = clientEntry.id
     if (!clientId) {
       const { data: nc, error: ce } = await supabase.from('clients')
-        .insert({ user_id: userId, name: clientEntry.name, address: clientEntry.address || null, npwp: clientEntry.npwp || null, pic_name: clientEntry.pic_name || null, pic_email: clientEntry.pic_email || null })
+        .insert({ user_id: userId, name: clientEntry.name, address: clientEntry.address || null, npwp: clientEntry.npwp || null, pic_name: clientEntry.pic_name || null, pic_email: clientEntry.pic_email || null, entity_type: clientEntry.entity_type })
         .select('id').single()
       if (ce || !nc) { setToast({ message: 'Gagal menyimpan data klien.', type: 'error' }); setSaving(false); return }
       clientId = nc.id
+    } else {
+      /* Persist entity_type update for existing clients (covers the confirmation flow). */
+      const original = dbClients.find(c => c.id === clientId)
+      if (original && original.entity_type !== clientEntry.entity_type) {
+        await supabase.from('clients').update({ entity_type: clientEntry.entity_type }).eq('id', clientId)
+      }
     }
 
     const { data: inv, error: ie } = await supabase.from('invoices').insert({
@@ -444,8 +464,41 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
               </div>
             )}
           </div>
+
+          {/* Confirmation banner for existing clients without entity_type set */}
+          {needsEntityConfirmation && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <p className="text-xs text-amber-800">
+                <strong>Konfirmasi tipe entitas</strong> — Klien ini belum punya tipe entitas. Pastikan pilihan di bawah sudah sesuai sebelum melanjutkan.
+              </p>
+            </div>
+          )}
+
           <div className="border-t border-border pt-4 space-y-4">
             <p className="text-xs font-semibold text-medium-gray uppercase tracking-wider">Detail Klien</p>
+
+            {/* Entity type selector */}
+            <div>
+              <label className="block text-sm font-medium text-primary-dark mb-2">
+                Tipe entitas <span className="text-error">*</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {ENTITY_OPTIONS.map(opt => (
+                  <button key={opt.value} type="button"
+                    onClick={() => setCE('entity_type', opt.value)}
+                    className={[
+                      'text-left px-3 py-2.5 rounded-xl border-2 transition-all',
+                      clientEntry.entity_type === opt.value
+                        ? 'border-primary-teal bg-subtle-teal'
+                        : 'border-border bg-white hover:border-primary-teal/50',
+                    ].join(' ')}>
+                    <p className="text-xs font-semibold text-primary-dark">{opt.label}</p>
+                    <p className="text-[10px] text-medium-gray mt-0.5 leading-tight">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-primary-dark mb-1.5">Nama <span className="text-error">*</span></label>
               <input type="text" value={clientEntry.name} onChange={e => setCE('name', e.target.value)} placeholder="PT Maju Bersama"
@@ -553,31 +606,53 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
       {/* ── STEP 4 ── */}
       {step === 4 && (
         <>
-          <div className="bg-white rounded-2xl border border-border p-6 space-y-3">
-            <TaxRow label="Subtotal" value={formatRupiah(subtotal)} />
-            <TaxRow label="DPP (Dasar Pengenaan Pajak)" value={formatRupiah(taxResult.dpp)} />
-            <div className="border-t border-border/50 pt-3">
-              <TaxRow label={`${taxResult.tax_type === 'pph21' ? 'PPh 21' : 'PPh 23'} dipotong klien (${(taxResult.tax_rate * 100).toFixed(1)}%)`}
-                value={`-${formatRupiah(taxResult.pph_amount)}`} cls="text-error" />
-            </div>
-            {taxResult.ppn_amount > 0 && <TaxRow label="PPN (11%)" value={`+${formatRupiah(taxResult.ppn_amount)}`} cls="text-success" />}
-            <div className="border-t border-border pt-4 flex items-center justify-between">
-              <span className="font-bold text-primary-dark">Yang kamu terima</span>
-              <span className="text-2xl font-extrabold text-primary-teal tabular-nums">{formatRupiah(taxResult.net_amount)}</span>
-            </div>
-          </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <p className="text-xs text-amber-800">
-              <strong>ℹ️ Catatan:</strong>{' '}
-              {taxResult.tax_type === 'pph21'
-                ? 'PPh 21 dipotong langsung oleh pemberi kerja dan disetorkan ke negara.'
-                : 'PPh 23 dipotong klien saat transfer. Minta bukti potong setelah pembayaran.'}
-            </p>
-          </div>
-          {userProfile.entity_type === 'individual' && !userProfile.has_npwp && (
-            <div className="bg-error/5 border border-error/20 rounded-xl px-4 py-3">
-              <p className="text-xs text-error"><strong>Tanpa NPWP:</strong> Tarif PPh 21 kamu 3% (vs 2.5% untuk pemegang NPWP).</p>
-            </div>
+          {clientEntry.entity_type === 'perorangan' ? (
+            <>
+              <div className="bg-white rounded-2xl border border-border p-6 space-y-3">
+                <TaxRow label="Subtotal (bruto)" value={formatRupiah(subtotal)} />
+                {taxResult.ppn_amount > 0 && (
+                  <TaxRow label="PPN (11%)" value={`+${formatRupiah(taxResult.ppn_amount)}`} cls="text-success" />
+                )}
+                <div className="border-t border-border pt-4 flex items-center justify-between">
+                  <span className="font-bold text-primary-dark">Yang kamu terima</span>
+                  <span className="text-2xl font-extrabold text-primary-teal tabular-nums">{formatRupiah(taxResult.net_amount)}</span>
+                </div>
+              </div>
+              <div className="bg-very-light-gray border border-border rounded-xl px-4 py-3">
+                <p className="text-xs text-medium-gray">
+                  Klien perorangan tidak memotong PPh. Kamu tetap wajib melaporkan penghasilan ini di SPT Tahunan.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-white rounded-2xl border border-border p-6 space-y-3">
+                <TaxRow label="Subtotal" value={formatRupiah(subtotal)} />
+                <TaxRow label="DPP (Dasar Pengenaan Pajak)" value={formatRupiah(taxResult.dpp)} />
+                <div className="border-t border-border/50 pt-3">
+                  <TaxRow label={`${taxResult.tax_type === 'pph21' ? 'PPh 21' : 'PPh 23'} dipotong klien (${(taxResult.tax_rate * 100).toFixed(1)}%)`}
+                    value={`-${formatRupiah(taxResult.pph_amount)}`} cls="text-error" />
+                </div>
+                {taxResult.ppn_amount > 0 && <TaxRow label="PPN (11%)" value={`+${formatRupiah(taxResult.ppn_amount)}`} cls="text-success" />}
+                <div className="border-t border-border pt-4 flex items-center justify-between">
+                  <span className="font-bold text-primary-dark">Yang kamu terima</span>
+                  <span className="text-2xl font-extrabold text-primary-teal tabular-nums">{formatRupiah(taxResult.net_amount)}</span>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <p className="text-xs text-amber-800">
+                  <strong>ℹ️ Catatan:</strong>{' '}
+                  {taxResult.tax_type === 'pph21'
+                    ? 'PPh 21 dipotong langsung oleh pemberi kerja dan disetorkan ke negara.'
+                    : 'PPh 23 dipotong klien saat transfer. Minta bukti potong setelah pembayaran.'}
+                </p>
+              </div>
+              {userProfile.entity_type === 'individual' && !userProfile.has_npwp && (
+                <div className="bg-error/5 border border-error/20 rounded-xl px-4 py-3">
+                  <p className="text-xs text-error"><strong>Tanpa NPWP:</strong> Tarif PPh 21 kamu 3% (vs 2.5% untuk pemegang NPWP).</p>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

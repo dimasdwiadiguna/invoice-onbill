@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatNPWP } from '@/lib/tax'
+import { formatNPWP, type ClientEntityType } from '@/lib/tax'
 import { Toast } from '@/components/ui/Toast'
 
 type FormState = {
@@ -13,6 +13,7 @@ type FormState = {
   pic_name: string
   pic_email: string
   internal_notes: string
+  entity_type: ClientEntityType
 }
 
 type Errors = Partial<Record<keyof FormState | 'root', string>>
@@ -21,7 +22,14 @@ type ToastState = { message: string; type: 'error' | 'success' } | null
 const EMPTY: FormState = {
   name: '', address: '', npwp: '', npwpDisplay: '',
   pic_name: '', pic_email: '', internal_notes: '',
+  entity_type: 'badan_usaha',
 }
+
+const ENTITY_OPTIONS: { value: ClientEntityType; label: string; desc: string }[] = [
+  { value: 'badan_usaha', label: 'Badan Usaha',  desc: 'PT, CV, Firma, Koperasi, dll.' },
+  { value: 'pemerintah',  label: 'Pemerintah',   desc: 'Instansi / lembaga pemerintah' },
+  { value: 'perorangan',  label: 'Perorangan',   desc: 'Individu / UMKM tanpa badan hukum' },
+]
 
 type Props = {
   clientId: string | null  // null = new client, string = edit existing
@@ -67,6 +75,7 @@ export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
           pic_name:       data.pic_name ?? '',
           pic_email:      data.pic_email ?? '',
           internal_notes: data.internal_notes ?? '',
+          entity_type:    (data.entity_type as ClientEntityType) ?? 'badan_usaha',
         })
       }
       setLoading(false)
@@ -108,6 +117,7 @@ export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
       pic_name:       form.pic_name.trim() || null,
       pic_email:      form.pic_email.trim() || null,
       internal_notes: form.internal_notes.trim() || null,
+      entity_type:    form.entity_type,
     }
 
     if (isNew) {
@@ -188,6 +198,33 @@ export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
             </div>
           ) : (
             <div className="p-6 space-y-5">
+
+              {/* Entity type */}
+              <div>
+                <label className="block text-sm font-medium text-primary-dark mb-2">
+                  Tipe entitas klien <span className="text-error">*</span>
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {ENTITY_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => set('entity_type', opt.value)}
+                      className={[
+                        'text-left px-4 py-3 rounded-xl border-2 transition-all',
+                        form.entity_type === opt.value
+                          ? 'border-primary-teal bg-subtle-teal'
+                          : 'border-border bg-white hover:border-primary-teal/50',
+                      ].join(' ')}
+                    >
+                      <p className="text-sm font-semibold text-primary-dark">{opt.label}</p>
+                      <p className="text-xs text-medium-gray mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-border"/>
 
               {/* Name */}
               <div>

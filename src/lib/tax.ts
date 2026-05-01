@@ -4,6 +4,8 @@ export type UserProfile = {
   is_pkp: boolean
 }
 
+export type ClientEntityType = 'badan_usaha' | 'pemerintah' | 'perorangan'
+
 export type TaxResult = {
   dpp: number
   tax_type: 'pph21' | 'pph23' | 'none'
@@ -17,12 +19,25 @@ export type TaxResult = {
 /**
  * All monetary values are in DB units (Rupiah × 100).
  *
+ * Two-factor decision:
+ *   Factor 1 (userProfile) → which PPh: PPh 21 (individual) or PPh 23 (cv/pt)
+ *   Factor 2 (clientEntityType) → whether PPh appears: only badan_usaha / pemerintah
+ *
  * PPh 21 — individu: 2.5% (NPWP) or 3% (non-NPWP)
  * PPh 23 — badan usaha: 2%
- * PPN    — only if is_pkp: 11%
+ * PPN    — only if is_pkp: 11% (unaffected by client type)
  */
-export function calculateTax(subtotal: number, profile: UserProfile): TaxResult {
+export function calculateTax(
+  subtotal: number,
+  profile: UserProfile,
+  clientEntityType: ClientEntityType = 'badan_usaha',
+): TaxResult {
   const dpp = subtotal
+  const ppn_amount = profile.is_pkp ? Math.round(dpp * 0.11) : 0
+
+  if (clientEntityType === 'perorangan') {
+    return { dpp, tax_type: 'none', tax_rate: 0, pph_amount: 0, ppn_amount, net_amount: dpp + ppn_amount }
+  }
 
   let tax_type: 'pph21' | 'pph23'
   let tax_rate: number
@@ -36,7 +51,6 @@ export function calculateTax(subtotal: number, profile: UserProfile): TaxResult 
   }
 
   const pph_amount = Math.round(dpp * tax_rate)
-  const ppn_amount = profile.is_pkp ? Math.round(dpp * 0.11) : 0
   const net_amount = dpp - pph_amount + ppn_amount
 
   return { dpp, tax_type, tax_rate, pph_amount, ppn_amount, net_amount }
@@ -48,7 +62,7 @@ export function calculateTax(subtotal: number, profile: UserProfile): TaxResult 
  */
 export function formatRupiah(amountInDbUnits: number): string {
   return (
-    'Rp ' +
+    'Rp ' +
     new Intl.NumberFormat('id-ID').format(Math.round(amountInDbUnits / 100))
   )
 }
