@@ -41,7 +41,7 @@ export default function FinalCTASection() {
             : { opacity: 0 }}
         >
           <a
-            href="/daftar"
+            href="/register"
             className="inline-flex items-center gap-2 bg-primary-teal text-white font-semibold
                        text-base px-8 py-4 rounded-xl shadow-xl shadow-primary-teal/30
                        hover:bg-primary-teal/90 transition-all duration-200"

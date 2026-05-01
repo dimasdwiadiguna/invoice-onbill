@@ -3,11 +3,13 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatRupiah } from '@/lib/tax'
 import { StatusBadge } from '@/components/ui/Badge'
 import { Toast } from '@/components/ui/Toast'
+import { InvoiceBuilderModal } from '@/components/invoices/InvoiceBuilderModal'
 
 type Invoice = {
   id: string
@@ -30,6 +32,7 @@ const STATUS_FILTERS = [
 ] as const
 
 export default function InvoicesPage() {
+  const router = useRouter()
   const [invoices,   setInvoices]   = useState<Invoice[]>([])
   const [search,     setSearch]     = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -37,6 +40,7 @@ export default function InvoicesPage() {
   const [plan,       setPlan]       = useState('free')
   const [monthCount, setMonthCount] = useState(0)
   const [toast,      setToast]      = useState<ToastState>(null)
+  const [showBuilder, setShowBuilder] = useState(false)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -115,8 +119,9 @@ export default function InvoicesPage() {
           </p>
         </div>
         {canCreate ? (
-          <Link
-            href="/invoices/new"
+          <button
+            type="button"
+            onClick={() => setShowBuilder(true)}
             className="inline-flex items-center gap-2 bg-primary-teal text-white font-semibold
                        text-sm px-5 py-2.5 rounded-xl hover:bg-primary-teal/90 transition-all shadow-sm"
           >
@@ -124,7 +129,7 @@ export default function InvoicesPage() {
               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
             </svg>
             Buat Invoice
-          </Link>
+          </button>
         ) : (
           <div className="text-right">
             <p className="text-xs text-error font-medium">Batas 5 invoice/bulan (Free) tercapai.</p>
@@ -238,6 +243,13 @@ export default function InvoicesPage() {
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {showBuilder && (
+        <InvoiceBuilderModal
+          onClose={() => setShowBuilder(false)}
+          onCreated={id => { setShowBuilder(false); router.push(`/invoices/${id}`) }}
+        />
+      )}
     </div>
   )
 }
