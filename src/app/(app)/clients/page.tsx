@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Toast } from '@/components/ui/Toast'
-import { formatNPWP } from '@/lib/tax'
+import { ClientFormModal } from '@/components/clients/ClientFormModal'
 
 type Client = {
   id: string
@@ -58,12 +58,14 @@ function ConfirmDialog({
 
 /* ─── Page ──────────────────────────────────────────────────── */
 export default function ClientsPage() {
-  const [clients,     setClients]     = useState<Client[]>([])
-  const [search,      setSearch]      = useState('')
-  const [loading,     setLoading]     = useState(true)
-  const [plan,        setPlan]        = useState<string>('free')
-  const [toast,       setToast]       = useState<ToastState>(null)
+  const [clients,      setClients]      = useState<Client[]>([])
+  const [search,       setSearch]       = useState('')
+  const [loading,      setLoading]      = useState(true)
+  const [plan,         setPlan]         = useState<string>('free')
+  const [toast,        setToast]        = useState<ToastState>(null)
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null)
+  const [modalClientId, setModalClientId] = useState<string | null | undefined>(undefined)
+  // undefined = closed, null = new, string = edit
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -87,7 +89,6 @@ export default function ClientsPage() {
 
     setPlan(profileData?.plan ?? 'free')
 
-    // Count invoices per client
     const countMap: Record<string, number> = {}
     invData?.forEach(inv => {
       if (inv.client_id) countMap[inv.client_id] = (countMap[inv.client_id] ?? 0) + 1
@@ -117,6 +118,18 @@ export default function ClientsPage() {
     }
   }
 
+  function handleModalSaved(id: string) {
+    setModalClientId(undefined)
+    if (id === 'deleted') {
+      setToast({ message: 'Klien berhasil dihapus.', type: 'success' })
+    } else if (modalClientId === null) {
+      setToast({ message: 'Klien berhasil ditambahkan.', type: 'success' })
+    } else {
+      setToast({ message: 'Perubahan berhasil disimpan.', type: 'success' })
+    }
+    load()
+  }
+
   const filtered = clients.filter(c => {
     const q = search.toLowerCase()
     return (
@@ -126,9 +139,9 @@ export default function ClientsPage() {
     )
   })
 
-  const isFree    = plan === 'free'
-  const atLimit   = isFree && clients.length >= 5
-  const canAdd    = !atLimit
+  const isFree = plan === 'free'
+  const atLimit = isFree && clients.length >= 5
+  const canAdd  = !atLimit
 
   return (
     <div className="p-6 lg:p-8 max-w-5xl space-y-6">
@@ -142,8 +155,9 @@ export default function ClientsPage() {
           </p>
         </div>
         {canAdd ? (
-          <Link
-            href="/clients/new"
+          <button
+            type="button"
+            onClick={() => setModalClientId(null)}
             className="inline-flex items-center gap-2 bg-primary-teal text-white font-semibold
                        text-sm px-5 py-2.5 rounded-xl hover:bg-primary-teal/90 transition-all shadow-sm"
           >
@@ -151,7 +165,7 @@ export default function ClientsPage() {
               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
             </svg>
             Tambah Klien
-          </Link>
+          </button>
         ) : (
           <div className="text-right">
             <p className="text-xs text-error font-medium">Batas 5 klien (Free) tercapai.</p>
@@ -218,12 +232,12 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/clients/${client.id}`}
+                        <button
+                          onClick={() => setModalClientId(client.id)}
                           className="text-xs font-semibold text-primary-teal hover:underline px-3 py-1.5 rounded-lg hover:bg-subtle-teal transition-colors"
                         >
                           Edit
-                        </Link>
+                        </button>
                         <button
                           onClick={() => setDeleteTarget(client)}
                           className="text-xs font-semibold text-light-gray hover:text-error px-3 py-1.5 rounded-lg hover:bg-error/5 transition-colors"
@@ -250,6 +264,14 @@ export default function ClientsPage() {
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {modalClientId !== undefined && (
+        <ClientFormModal
+          clientId={modalClientId}
+          onClose={() => setModalClientId(undefined)}
+          onSaved={handleModalSaved}
+        />
+      )}
     </div>
   )
 }

@@ -1,9 +1,6 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-import ClientDetailPage from '@/app/(app)/clients/[id]/page'
-
+// Client creation is now handled by the modal on /clients
 export default function NewClientPage() {
-  return <ClientDetailPage idOverride="new" />
+  redirect('/clients')
 }
