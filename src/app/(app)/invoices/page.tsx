@@ -22,6 +22,7 @@ type Invoice = {
 }
 
 type ToastState = { message: string; type: 'error' | 'success' } | null
+type SortKey   = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'
 
 const STATUS_FILTERS = [
   { value: '',        label: 'Semua'    },
@@ -31,16 +32,45 @@ const STATUS_FILTERS = [
   { value: 'overdue', label: 'Overdue'  },
 ] as const
 
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'date_desc',   label: 'Terbaru' },
+  { value: 'date_asc',    label: 'Terlama' },
+  { value: 'amount_desc', label: 'Terbesar' },
+  { value: 'amount_asc',  label: 'Terkecil' },
+]
+
+function todayISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function monthOptions() {
+  const opts: { value: string; label: string }[] = [{ value: '', label: 'Semua Bulan' }]
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const yyyy = d.getFullYear()
+    const mm   = String(d.getMonth() + 1).padStart(2, '0')
+    opts.push({
+      value: `${yyyy}-${mm}`,
+      label: d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    })
+  }
+  return opts
+}
+
 export default function InvoicesPage() {
   const router = useRouter()
-  const [invoices,   setInvoices]   = useState<Invoice[]>([])
-  const [search,     setSearch]     = useState('')
+  const [invoices,     setInvoices]     = useState<Invoice[]>([])
+  const [search,       setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [loading,    setLoading]    = useState(true)
-  const [plan,       setPlan]       = useState('free')
-  const [monthCount, setMonthCount] = useState(0)
-  const [toast,      setToast]      = useState<ToastState>(null)
-  const [showBuilder, setShowBuilder] = useState(false)
+  const [monthFilter,  setMonthFilter]  = useState('')
+  const [sortKey,      setSortKey]      = useState<SortKey>('date_desc')
+  const [loading,      setLoading]      = useState(true)
+  const [plan,         setPlan]         = useState('free')
+  const [monthCount,   setMonthCount]   = useState(0)
+  const [toast,        setToast]        = useState<ToastState>(null)
+  const [showBuilder,  setShowBuilder]  = useState(false)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -70,13 +100,20 @@ export default function InvoicesPage() {
     setPlan(profile?.plan ?? 'free')
     setMonthCount(count ?? 0)
 
+    const today = todayISO()
+
     setInvoices(
       (invData ?? []).map(inv => {
-        const c = Array.isArray(inv.clients) ? inv.clients[0] : inv.clients
+        const c      = Array.isArray(inv.clients) ? inv.clients[0] : inv.clients
+        let status   = inv.status as Invoice['status']
+        /* Reflect overdue locally on list too */
+        if (status === 'sent' && inv.due_date && inv.due_date < today) {
+          status = 'overdue'
+        }
         return {
           id:             inv.id,
           invoice_number: inv.invoice_number,
-          status:         inv.status as Invoice['status'],
+          status,
           net_amount:     inv.net_amount ?? 0,
           issue_date:     inv.issue_date,
           due_date:       inv.due_date ?? null,
@@ -89,22 +126,54 @@ export default function InvoicesPage() {
 
   useEffect(() => { load() }, [load])
 
-  const filtered = invoices.filter(inv => {
-    const q = search.toLowerCase()
-    const matchSearch =
-      inv.invoice_number.toLowerCase().includes(q) ||
-      inv.client_name.toLowerCase().includes(q)
-    const matchStatus = !statusFilter || inv.status === statusFilter
-    return matchSearch && matchStatus
-  })
+  /* Filter + sort */
+  const filtered = invoices
+    .filter(inv => {
+      const q = search.toLowerCase()
+      const matchSearch =
+        inv.invoice_number.toLowerCase().includes(q) ||
+        inv.client_name.toLowerCase().includes(q)
+      const matchStatus = !statusFilter || inv.status === statusFilter
+      const matchMonth  = !monthFilter  || inv.issue_date.startsWith(monthFilter)
+      return matchSearch && matchStatus && matchMonth
+    })
+    .sort((a, b) => {
+      if (sortKey === 'date_desc')   return b.issue_date.localeCompare(a.issue_date)
+      if (sortKey === 'date_asc')    return a.issue_date.localeCompare(b.issue_date)
+      if (sortKey === 'amount_desc') return b.net_amount - a.net_amount
+      if (sortKey === 'amount_asc')  return a.net_amount - b.net_amount
+      return 0
+    })
 
   const isFree    = plan === 'free'
   const atLimit   = isFree && monthCount >= 5
   const canCreate = !atLimit
 
   function fmtDate(iso: string) {
-    return new Date(iso + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(iso + 'T00:00:00').toLocaleDateString('id-ID', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    })
   }
+
+  async function handleDownloadPDF(e: React.MouseEvent, invId: string, invNumber: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      const res  = await fetch(`/api/invoice-pdf/${invId}`)
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${invNumber}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setToast({ message: 'Gagal membuat PDF.', type: 'error' })
+    }
+  }
+
+  const months = monthOptions()
 
   return (
     <div className="p-6 lg:p-8 max-w-5xl space-y-6">
@@ -152,18 +221,40 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search */}
         <div className="relative flex-1 min-w-48">
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-light-gray" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd"/>
           </svg>
-          <input type="text" placeholder="Cari nomor atau klien…" value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors bg-white" />
+          <input
+            type="text"
+            placeholder="Cari nomor atau klien…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors bg-white"
+          />
         </div>
+
+        {/* Month filter */}
+        <select
+          value={monthFilter}
+          onChange={e => setMonthFilter(e.target.value)}
+          className="px-3 py-2.5 rounded-xl border border-border text-sm text-primary-dark outline-none focus:border-primary-teal transition-colors bg-white"
+        >
+          {months.map(m => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+
+        {/* Status filter */}
         <div className="flex items-center gap-1.5 bg-white border border-border rounded-xl p-1">
           {STATUS_FILTERS.map(f => (
-            <button key={f.value} type="button" onClick={() => setStatusFilter(f.value)}
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setStatusFilter(f.value)}
               className={[
                 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-all',
                 statusFilter === f.value
@@ -174,6 +265,17 @@ export default function InvoicesPage() {
             </button>
           ))}
         </div>
+
+        {/* Sort */}
+        <select
+          value={sortKey}
+          onChange={e => setSortKey(e.target.value as SortKey)}
+          className="px-3 py-2.5 rounded-xl border border-border text-sm text-primary-dark outline-none focus:border-primary-teal transition-colors bg-white"
+        >
+          {SORT_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Table */}
@@ -188,14 +290,18 @@ export default function InvoicesPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
             </svg>
             <p className="text-medium-gray text-sm">
-              {search || statusFilter
+              {search || statusFilter || monthFilter
                 ? 'Tidak ada invoice yang cocok.'
                 : 'Belum ada invoice. Buat yang pertama!'}
             </p>
-            {!search && !statusFilter && canCreate && (
-              <Link href="/invoices/new" className="inline-block text-sm font-semibold text-primary-teal hover:underline">
+            {!search && !statusFilter && !monthFilter && canCreate && (
+              <button
+                type="button"
+                onClick={() => setShowBuilder(true)}
+                className="inline-block text-sm font-semibold text-primary-teal hover:underline"
+              >
                 Buat Invoice →
-              </Link>
+              </button>
             )}
           </div>
         ) : (
@@ -205,10 +311,10 @@ export default function InvoicesPage() {
                 <tr className="border-b border-border bg-very-light-gray/50">
                   <th className="text-left px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider">Nomor</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider hidden sm:table-cell">Klien</th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider hidden md:table-cell">Jumlah</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider hidden md:table-cell">Jumlah Bersih</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider">Status</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider hidden lg:table-cell">Tanggal</th>
-                  <th className="px-6 py-3" />
+                  <th className="px-6 py-3 text-xs font-semibold text-light-gray uppercase tracking-wider text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -229,10 +335,22 @@ export default function InvoicesPage() {
                       {fmtDate(inv.issue_date)}
                     </td>
                     <td className="px-6 py-4">
-                      <Link href={`/invoices/${inv.id}`}
-                        className="text-xs font-semibold text-primary-teal hover:underline px-3 py-1.5 rounded-lg hover:bg-subtle-teal transition-colors">
-                        Lihat
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/invoices/${inv.id}`}
+                          className="text-xs font-semibold text-primary-teal hover:underline px-3 py-1.5 rounded-lg hover:bg-subtle-teal transition-colors">
+                          Lihat
+                        </Link>
+                        <button
+                          type="button"
+                          title="Download PDF"
+                          onClick={e => handleDownloadPDF(e, inv.id, inv.invoice_number)}
+                          className="p-1.5 text-light-gray hover:text-primary-teal hover:bg-subtle-teal rounded-lg transition-colors">
+                          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -242,12 +360,19 @@ export default function InvoicesPage() {
         )}
       </div>
 
+      {/* Count */}
+      {filtered.length > 0 && (
+        <p className="text-xs text-light-gray text-center">
+          Menampilkan {filtered.length} dari {invoices.length} invoice
+        </p>
+      )}
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {showBuilder && (
         <InvoiceBuilderModal
           onClose={() => setShowBuilder(false)}
-          onCreated={id => { setShowBuilder(false); router.push(`/invoices/${id}`) }}
+          onCreated={newId => { setShowBuilder(false); router.push(`/invoices/${newId}`) }}
         />
       )}
     </div>
