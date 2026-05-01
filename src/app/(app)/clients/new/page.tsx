@@ -1,5 +1,9 @@
+'use client'
+
+export const dynamic = 'force-dynamic'
+
 import ClientDetailPage from '@/app/(app)/clients/[id]/page'
 
-// Re-use the [id] page with id="new" via parallel route
-// Next.js static route /clients/new takes priority over /clients/[id]
-export { default } from '@/app/(app)/clients/[id]/page'
+export default function NewClientPage() {
+  return <ClientDetailPage idOverride="new" />
+}

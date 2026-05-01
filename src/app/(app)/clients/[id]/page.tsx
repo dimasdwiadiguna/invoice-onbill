@@ -27,9 +27,10 @@ const EMPTY: FormState = {
   pic_name: '', pic_email: '', internal_notes: '',
 }
 
-export default function ClientDetailPage() {
+export default function ClientDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const router = useRouter()
-  const { id } = useParams<{ id: string }>()
+  const { id: paramId } = useParams<{ id: string }>()
+  const id     = idOverride ?? paramId
   const isNew  = id === 'new'
 
   const [form,     setForm]     = useState<FormState>(EMPTY)

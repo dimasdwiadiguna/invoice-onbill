@@ -91,7 +91,7 @@ export default function PricingSection() {
             </ul>
 
             <a
-              href="/daftar"
+              href="/register"
               className="block w-full text-center font-semibold text-sm text-primary-teal
                          border-2 border-primary-teal rounded-xl px-6 py-3
                          hover:bg-primary-teal hover:text-white transition-all duration-200"
@@ -134,7 +134,7 @@ export default function PricingSection() {
             </ul>
 
             <a
-              href="/daftar?plan=pro"
+              href="/register?plan=pro"
               className="block w-full text-center font-semibold text-sm text-white
                          bg-primary-teal rounded-xl px-6 py-3
                          hover:bg-primary-teal/90 transition-all duration-200

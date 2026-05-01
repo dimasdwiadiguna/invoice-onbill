@@ -98,7 +98,7 @@ export default function HeroSection() {
             style={{ animation: 'fadeInUp 0.55s 0.36s ease both' }}
           >
             <a
-              href="/daftar"
+              href="/register"
               className="inline-flex items-center gap-1.5 bg-primary-teal text-white font-semibold text-sm px-6 py-3 rounded-xl hover:bg-primary-teal/90 transition-all duration-200 shadow-lg shadow-primary-teal/25"
             >
               Buat Invoice Gratis <span aria-hidden>→</span>
