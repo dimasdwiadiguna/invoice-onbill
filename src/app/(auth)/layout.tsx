@@ -5,7 +5,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-light-cream flex flex-col items-center justify-center px-4 py-12">
       {/* Logo */}
       <a href="/" className="mb-8 flex items-center select-none">
-        <Logo variant="full" height={28} />
+        <Logo variant="full" height={40} />
       </a>
 
       {/* Card */}

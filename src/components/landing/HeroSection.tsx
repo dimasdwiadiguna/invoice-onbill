@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
 const WORDS = ['ngonten', 'ngoding', 'ngedesain', 'ngerjain usaha']
@@ -45,7 +46,7 @@ export default function HeroSection() {
 
   return (
     <section className="relative pt-16 bg-light-cream overflow-hidden flex items-center">
-      <div className="max-w-6xl mx-auto px-6 xl:py-12 py-12 w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+      <div className="max-w-6xl mx-auto px-6 xl:py-12 py-12 w-full grid md:grid-cols-2 gap-12 lg:gap-16 items-center">
 
         {/* ── Left: Copy ─────────────────────────────────────── */}
         <div className="space-y-7">
@@ -213,11 +214,15 @@ export default function HeroSection() {
           </div>
 
           {/* Floating badge 1 */}
+          <div className="hidden sm:block absolute -bottom-3 -left-20 sm:-left-10 md:-left-30 lg:-left-10 animate-float-1 pointer-events-none">
+<Image src="/people.png" alt="Onbill" width="300" height="300" priority />
+          </div>
           <div className="absolute -top-3 -right-2 lg:-right-5 animate-float-1 pointer-events-none">
             <div className="bg-white border border-success/40 rounded-xl px-3 py-2 shadow-lg">
               <p className="text-xs font-semibold text-success whitespace-nowrap">✓ PPh 21 sudah dihitung</p>
             </div>
           </div>
+
 
           {/* Floating badge 2 */}
           <div className="absolute -bottom-3 -left-2 lg:-left-5 animate-float-2 pointer-events-none">

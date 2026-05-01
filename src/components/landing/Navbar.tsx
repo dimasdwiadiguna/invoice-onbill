@@ -32,7 +32,7 @@ export default function Navbar() {
 
         {/* Logo */}
         <a href="/" className="flex items-center select-none">
-          <Logo variant="full" height={24} />
+          <Logo variant="full" height={32} />
         </a>
 
         {/* Desktop nav */}
