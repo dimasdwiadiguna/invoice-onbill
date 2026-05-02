@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Protect all app routes — unauthenticated users go to login.
-  const APP_ROUTES = ['/dashboard', '/invoices', '/clients', '/settings', '/reports', '/onboarding']
+  const APP_ROUTES = ['/dashboard', '/invoices', '/clients', '/settings', '/reports', '/onboarding', '/admin']
   if (!user && APP_ROUTES.some(r => pathname.startsWith(r))) {
     return NextResponse.redirect(new URL('/login', request.url))
   }

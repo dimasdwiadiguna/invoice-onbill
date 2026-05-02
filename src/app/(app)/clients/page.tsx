@@ -151,7 +151,7 @@ export default function ClientsPage() {
   })
 
   const isFree = plan === 'free'
-  const atLimit = isFree && clients.length >= 5
+  const atLimit = isFree && clients.length >= 3
   const canAdd  = !atLimit
 
   return (
@@ -162,7 +162,7 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-extrabold text-primary-dark">Klien</h1>
           <p className="text-sm text-medium-gray mt-0.5">
             {clients.length} klien tersimpan
-            {isFree && ` · ${clients.length}/5 (Free)`}
+            {isFree && ` · ${clients.length}/3 (Free)`}
           </p>
         </div>
         {canAdd ? (
@@ -179,7 +179,7 @@ export default function ClientsPage() {
           </button>
         ) : (
           <div className="text-right">
-            <p className="text-xs text-error font-medium">Batas 5 klien (Free) tercapai.</p>
+            <p className="text-xs text-error font-medium">Batas 3 klien (Free) tercapai.</p>
             <Link href="/settings/billing" className="text-xs text-primary-teal font-semibold hover:underline">
               Upgrade ke Pro →
             </Link>
