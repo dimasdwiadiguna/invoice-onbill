@@ -328,10 +328,9 @@ export function InvoiceBuilderModal({ onClose, onCreated, tourMode = false }: Pr
       setDbClients(clientsData ?? [])
 
       if (plan === 'free') {
-        const now = new Date(), yyyy = now.getFullYear(), mm = String(now.getMonth() + 1).padStart(2, '0')
         const { count } = await supabase.from('invoices').select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id).is('deleted_at', null).gte('created_at', `${yyyy}-${mm}-01`)
-        if ((count ?? 0) >= 5) setLimitReached(true)
+          .eq('user_id', user.id).is('deleted_at', null)
+        if ((count ?? 0) >= 3) setLimitReached(true)
       }
       setInitLoading(false)
     }
@@ -778,8 +777,8 @@ export function InvoiceBuilderModal({ onClose, onCreated, tourMode = false }: Pr
     <div className="flex-1 flex flex-col items-center justify-center gap-5 p-10 text-center">
       <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center text-3xl">🔒</div>
       <div>
-        <h2 className="text-xl font-bold text-primary-dark">Batas Invoice Bulanan Tercapai</h2>
-        <p className="text-sm text-medium-gray mt-2 max-w-xs mx-auto">Paket Free hanya 5 invoice per bulan. Upgrade ke Pro untuk invoice tak terbatas.</p>
+        <h2 className="text-xl font-bold text-primary-dark">Batas Invoice Tercapai</h2>
+        <p className="text-sm text-medium-gray mt-2 max-w-xs mx-auto">Paket Free hanya 3 invoice. Upgrade ke Pro untuk invoice tak terbatas.</p>
       </div>
       <div className="flex gap-3">
         <button onClick={onClose} className="text-sm font-semibold px-5 py-2.5 rounded-xl border border-border text-medium-gray hover:border-primary-teal hover:text-primary-teal transition-all">Tutup</button>

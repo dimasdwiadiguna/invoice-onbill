@@ -23,7 +23,31 @@ type Profile = {
   preferred_font: string | null
   custom_footer: string | null
   plan: 'free' | 'pro'
+  plan_expires_at: string | null
   avatar_url: string | null
+}
+
+type Payment = {
+  id: string
+  plan_type: 'monthly' | 'annual'
+  amount: number
+  status: 'pending' | 'approved' | 'rejected'
+  note: string | null
+  rejection_note: string | null
+  created_at: string
+}
+
+const MONTHLY_PRICE = 39000
+const ANNUAL_PRICE  = 390000
+
+function fmtIDR(n: number) {
+  return new Intl.NumberFormat('id-ID').format(n)
+}
+
+function fmtExpiry(iso: string) {
+  return new Date(iso).toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })
 }
 
 type ToastState = { message: string; type: 'error' | 'success' } | null
@@ -229,16 +253,31 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [logoFile,      setLogoFile]      = useState<File | null>(null)
 
+  // Billing
+  const [payments,        setPayments]        = useState<Payment[]>([])
+  const [planChoice,      setPlanChoice]      = useState<'monthly' | 'annual'>('monthly')
+  const [creatingPayment, setCreatingPayment] = useState(false)
+  const [newPaymentId,    setNewPaymentId]    = useState<string | null>(null)
+  const [paymentNote,     setPaymentNote]     = useState('')
+
   const load = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data } = await supabase
-      .from('users')
-      .select('id, name, email, address, entity_type, has_npwp, npwp_number, is_pkp, logo_url, brand_color, preferred_font, custom_footer, plan, avatar_url')
-      .eq('id', user.id)
-      .single()
+    const [{ data }, { data: paymentsData }] = await Promise.all([
+      supabase
+        .from('users')
+        .select('id, name, email, address, entity_type, has_npwp, npwp_number, is_pkp, logo_url, brand_color, preferred_font, custom_footer, plan, plan_expires_at, avatar_url')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('payments')
+        .select('id, plan_type, amount, status, note, rejection_note, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ])
 
     if (data) {
       setProfile(data as Profile)
@@ -254,10 +293,35 @@ export default function SettingsPage() {
       setCustomFooter(data.custom_footer ?? '')
       setLogoPreview(data.logo_url ?? null)
     }
+    if (paymentsData) setPayments(paymentsData as Payment[])
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  /* ── Create payment record ───────────────────────────────── */
+  async function handleCreatePayment() {
+    setCreatingPayment(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setCreatingPayment(false); return }
+
+    const amount = planChoice === 'monthly' ? MONTHLY_PRICE : ANNUAL_PRICE
+    const { data, error } = await supabase
+      .from('payments')
+      .insert({ user_id: user.id, plan_type: planChoice, amount, note: paymentNote.trim() || null })
+      .select('id')
+      .single()
+
+    if (error || !data) {
+      setToast({ message: 'Gagal membuat permintaan pembayaran. Coba lagi.', type: 'error' })
+      setCreatingPayment(false)
+      return
+    }
+    setNewPaymentId(data.id)
+    setCreatingPayment(false)
+    load() // refresh payments list
+  }
 
   /* ── Upload helper ───────────────────────────────────────── */
   async function uploadFile(
@@ -690,117 +754,280 @@ export default function SettingsPage() {
       )}
 
       {/* ── Tab: Billing ─────────────────────────────────────── */}
-      {activeTab === 'billing' && (
-        <div className="space-y-4">
-          {/* Current plan */}
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-light-gray uppercase tracking-wider mb-1">
-                  Plan Saat Ini
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className={[
-                    'text-2xl font-extrabold',
-                    isPro ? 'text-primary-teal' : 'text-primary-dark',
-                  ].join(' ')}>
-                    {isPro ? 'Pro' : 'Free'}
-                  </span>
-                  {isPro && (
-                    <span className="text-xs font-bold text-white bg-primary-teal px-2 py-0.5 rounded-full">
-                      AKTIF
+      {activeTab === 'billing' && (() => {
+        const WA_NUMBER  = process.env.NEXT_PUBLIC_WA_NUMBER ?? ''
+        const BANK_NAME  = process.env.NEXT_PUBLIC_BANK_NAME ?? 'BCA'
+        const BANK_NO    = process.env.NEXT_PUBLIC_BANK_ACCOUNT ?? '—'
+        const BANK_HOLDER = process.env.NEXT_PUBLIC_BANK_HOLDER ?? '—'
+
+        const pendingPayment = payments.find(p => p.status === 'pending')
+        const shownPaymentId = newPaymentId ?? pendingPayment?.id ?? null
+        const shownAmount    = newPaymentId
+          ? (planChoice === 'monthly' ? MONTHLY_PRICE : ANNUAL_PRICE)
+          : (pendingPayment?.amount ?? 0)
+        const shownPlanLabel = newPaymentId
+          ? (planChoice === 'monthly' ? 'Pro Monthly' : 'Pro Annual')
+          : (pendingPayment?.plan_type === 'annual' ? 'Pro Annual' : 'Pro Monthly')
+
+        const waText = shownPaymentId
+          ? encodeURIComponent(
+              `Halo onbill, saya ingin upgrade ke ${shownPlanLabel}.\n\n` +
+              `Nama: ${profile?.name}\n` +
+              `Email: ${profile?.email}\n` +
+              `Plan: ${shownPlanLabel}\n` +
+              `Nominal: Rp ${fmtIDR(shownAmount)}\n` +
+              `Payment ID: ${shownPaymentId}\n\n` +
+              `Sudah transfer ke ${BANK_NAME} ${BANK_NO} a.n ${BANK_HOLDER}.\n\n` +
+              `Mohon dikonfirmasi. Terima kasih!`
+            )
+          : ''
+        const waLink = `https://wa.me/${WA_NUMBER}?text=${waText}`
+
+        const statusBadge = (s: string) => {
+          if (s === 'approved') return <span className="text-xs font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">Disetujui</span>
+          if (s === 'rejected') return <span className="text-xs font-bold text-error bg-error/10 px-2 py-0.5 rounded-full">Ditolak</span>
+          return <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Menunggu</span>
+        }
+
+        return (
+          <div className="space-y-4">
+            {/* ── Current plan status ── */}
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-light-gray uppercase tracking-wider mb-1">
+                    Plan Saat Ini
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className={['text-2xl font-extrabold', isPro ? 'text-primary-teal' : 'text-primary-dark'].join(' ')}>
+                      {isPro ? 'Pro' : 'Free'}
                     </span>
+                    {isPro && (
+                      <span className="text-xs font-bold text-white bg-primary-teal px-2 py-0.5 rounded-full">AKTIF</span>
+                    )}
+                  </div>
+                  {isPro && profile?.plan_expires_at && (
+                    <p className="text-xs text-medium-gray mt-1">
+                      Aktif hingga <strong>{fmtExpiry(profile.plan_expires_at)}</strong>
+                    </p>
+                  )}
+                  {!isPro && (
+                    <p className="text-xs text-medium-gray mt-1">3 invoice · 3 klien · 2 template</p>
                   )}
                 </div>
-              </div>
-              {isPro ? (
-                <div className="w-12 h-12 bg-primary-teal/10 rounded-2xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-primary-teal" viewBox="0 0 20 20" fill="currentColor">
+                <div className={['w-12 h-12 rounded-2xl flex items-center justify-center', isPro ? 'bg-primary-teal/10' : 'bg-very-light-gray'].join(' ')}>
+                  <svg className={['w-6 h-6', isPro ? 'text-primary-teal' : 'text-light-gray'].join(' ')} viewBox="0 0 20 20" fill="currentColor">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
                   </svg>
                 </div>
-              ) : (
-                <div className="w-12 h-12 bg-very-light-gray rounded-2xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-light-gray" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd"/>
-                  </svg>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {!isPro ? (
-            /* Upgrade CTA */
-            <div className="bg-gradient-to-br from-primary-teal/5 to-primary-teal/10 border border-primary-teal/20 rounded-2xl p-6">
-              <h3 className="font-bold text-primary-dark text-lg mb-1">Upgrade ke Pro</h3>
-              <p className="text-sm text-medium-gray mb-5">
-                Buka semua fitur dan buat bisnis kamu terlihat lebih profesional.
-              </p>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
-                {[
-                  'Invoice & klien unlimited',
-                  'Kirim invoice via email',
-                  'Semua template invoice',
-                  'Logo & branding kustom',
-                  'Pilih font & warna brand',
-                  'Custom footer teks',
-                  'Laporan rekap tahunan SPT',
-                  'Prioritas dukungan',
-                ].map(benefit => (
-                  <li key={benefit} className="flex items-center gap-2 text-sm text-medium-gray">
-                    <svg className="w-4 h-4 text-primary-teal flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                    {benefit}
-                  </li>
-                ))}
-              </ul>
-              <a
-                href="mailto:hello@onbill.id?subject=Upgrade%20ke%20Pro"
-                className="inline-flex items-center gap-2 bg-primary-teal text-white font-bold
-                           text-sm px-6 py-3 rounded-xl hover:bg-primary-teal/90 transition-all shadow-sm"
-              >
-                Upgrade ke Pro →
-              </a>
-              <p className="text-xs text-light-gray mt-3">
-                Hubungi kami via email untuk informasi harga dan aktivasi.
-              </p>
-            </div>
-          ) : (
-            /* Pro management */
-            <Card>
-              <div>
-                <p className="text-sm font-semibold text-primary-dark mb-0.5">Langganan Pro Aktif</p>
-                <p className="text-xs text-medium-gray">
-                  Kamu menikmati semua fitur Pro. Terima kasih sudah mendukung Onbill!
-                </p>
-              </div>
-              <div className="border-t border-border pt-4">
-                <p className="text-xs font-semibold text-medium-gray uppercase tracking-wider mb-3">
-                  Butuh bantuan?
-                </p>
-                <a
-                  href="mailto:hello@onbill.id?subject=Manajemen%20Langganan%20Pro"
-                  className="text-sm text-primary-teal font-semibold hover:underline"
-                >
-                  Hubungi support via email →
-                </a>
-              </div>
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-light-gray mb-3">
-                  Untuk membatalkan langganan, hubungi tim kami setidaknya 3 hari sebelum tanggal renewal.
-                </p>
-                <a
-                  href="mailto:hello@onbill.id?subject=Batalkan%20Langganan%20Pro"
-                  className="text-sm text-error font-semibold hover:underline"
-                >
-                  Batalkan langganan
-                </a>
               </div>
             </Card>
-          )}
-        </div>
-      )}
+
+            {/* ── Upgrade section (Free users) ── */}
+            {!isPro && !shownPaymentId && (
+              <div className="bg-gradient-to-br from-primary-teal/5 to-primary-teal/10 border border-primary-teal/20 rounded-2xl p-6 space-y-5">
+                <div>
+                  <h3 className="font-bold text-primary-dark text-lg mb-1">Upgrade ke Pro</h3>
+                  <p className="text-sm text-medium-gray">Invoice & klien unlimited, semua template, branding kustom, laporan SPT.</p>
+                </div>
+
+                {/* Plan picker */}
+                <div className="grid grid-cols-2 gap-3">
+                  {([['monthly', 'Bulanan', `Rp ${fmtIDR(MONTHLY_PRICE)}`, '/bulan', null],
+                     ['annual',  'Tahunan', `Rp ${fmtIDR(ANNUAL_PRICE)}`,  '/tahun', '2 bulan gratis']] as const).map(
+                    ([val, label, price, period, badge]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setPlanChoice(val)}
+                        className={[
+                          'text-left px-4 py-3.5 rounded-xl border-2 transition-all',
+                          planChoice === val
+                            ? 'border-primary-teal bg-subtle-teal'
+                            : 'border-border bg-white hover:border-primary-teal/50',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs font-semibold text-medium-gray">{label}</p>
+                          {badge && (
+                            <span className="text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded-full">{badge}</span>
+                          )}
+                        </div>
+                        <p className="text-lg font-extrabold text-primary-dark">{price}</p>
+                        <p className="text-xs text-light-gray">{period}</p>
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {/* Bank info */}
+                <div className="bg-white rounded-xl border border-border p-4 space-y-2">
+                  <p className="text-xs font-semibold text-light-gray uppercase tracking-wider">Transfer ke</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-primary-dark">{BANK_NAME} · {BANK_NO}</p>
+                      <p className="text-xs text-medium-gray">a.n {BANK_HOLDER}</p>
+                    </div>
+                    <p className="text-xl font-extrabold text-primary-teal">
+                      Rp {fmtIDR(planChoice === 'monthly' ? MONTHLY_PRICE : ANNUAL_PRICE)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Transfer note */}
+                <div>
+                  <label className="block text-sm font-medium text-primary-dark mb-1.5">
+                    Berita transfer <span className="text-light-gray font-normal">(opsional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentNote}
+                    onChange={e => setPaymentNote(e.target.value)}
+                    placeholder="Mis. nama / nomor HP kamu"
+                    className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
+                               placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors"
+                  />
+                </div>
+
+                <button
+                  onClick={handleCreatePayment}
+                  disabled={creatingPayment}
+                  className="w-full bg-primary-teal text-white font-bold text-sm py-3 rounded-xl
+                             hover:bg-primary-teal/90 disabled:opacity-50 transition-all shadow-sm"
+                >
+                  {creatingPayment ? 'Membuat permintaan…' : 'Saya sudah transfer — Konfirmasi →'}
+                </button>
+                <p className="text-xs text-light-gray text-center">
+                  Setelah transfer, klik tombol di atas untuk membuat permintaan pembayaran,
+                  lalu konfirmasi via WhatsApp.
+                </p>
+              </div>
+            )}
+
+            {/* ── Payment confirmation banner ── */}
+            {shownPaymentId && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-bold text-amber-900">Permintaan pembayaran dibuat</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Transfer <strong>Rp {fmtIDR(shownAmount)}</strong> ke {BANK_NAME} {BANK_NO} a.n {BANK_HOLDER},
+                      lalu konfirmasi via WhatsApp di bawah. Admin akan mengaktifkan plan Pro kamu setelah pembayaran dikonfirmasi.
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl border border-amber-200 px-4 py-3">
+                  <p className="text-xs text-medium-gray mb-1">Payment ID</p>
+                  <p className="font-mono text-sm text-primary-dark font-bold">{shownPaymentId}</p>
+                </div>
+                {WA_NUMBER && (
+                  <a
+                    href={waLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-[#25D366] hover:bg-[#20bd5a]
+                               text-white font-bold text-sm py-3 rounded-xl transition-all shadow-sm"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                    Konfirmasi Pembayaran via WhatsApp
+                  </a>
+                )}
+                <button
+                  onClick={() => setNewPaymentId(null)}
+                  className="w-full text-sm text-medium-gray hover:text-primary-dark transition-colors"
+                >
+                  Tutup banner ini
+                </button>
+              </div>
+            )}
+
+            {/* ── Pro renewal (Pro users) ── */}
+            {isPro && !shownPaymentId && (
+              <div className="bg-gradient-to-br from-primary-teal/5 to-primary-teal/10 border border-primary-teal/20 rounded-2xl p-6 space-y-5">
+                <div>
+                  <h3 className="font-bold text-primary-dark text-lg mb-1">Perpanjang Plan Pro</h3>
+                  <p className="text-sm text-medium-gray">
+                    Perpanjang sebelum expired — durasi baru dihitung dari tanggal berakhir plan saat ini.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {([['monthly', 'Bulanan', `Rp ${fmtIDR(MONTHLY_PRICE)}`, '/bulan', null],
+                     ['annual',  'Tahunan', `Rp ${fmtIDR(ANNUAL_PRICE)}`,  '/tahun', '2 bulan gratis']] as const).map(
+                    ([val, label, price, period, badge]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setPlanChoice(val)}
+                        className={[
+                          'text-left px-4 py-3.5 rounded-xl border-2 transition-all',
+                          planChoice === val ? 'border-primary-teal bg-subtle-teal' : 'border-border bg-white hover:border-primary-teal/50',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs font-semibold text-medium-gray">{label}</p>
+                          {badge && <span className="text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded-full">{badge}</span>}
+                        </div>
+                        <p className="text-lg font-extrabold text-primary-dark">{price}</p>
+                        <p className="text-xs text-light-gray">{period}</p>
+                      </button>
+                    )
+                  )}
+                </div>
+                <div className="bg-white rounded-xl border border-border p-4 space-y-2">
+                  <p className="text-xs font-semibold text-light-gray uppercase tracking-wider">Transfer ke</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-primary-dark">{BANK_NAME} · {BANK_NO}</p>
+                      <p className="text-xs text-medium-gray">a.n {BANK_HOLDER}</p>
+                    </div>
+                    <p className="text-xl font-extrabold text-primary-teal">
+                      Rp {fmtIDR(planChoice === 'monthly' ? MONTHLY_PRICE : ANNUAL_PRICE)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCreatePayment}
+                  disabled={creatingPayment}
+                  className="w-full bg-primary-teal text-white font-bold text-sm py-3 rounded-xl
+                             hover:bg-primary-teal/90 disabled:opacity-50 transition-all shadow-sm"
+                >
+                  {creatingPayment ? 'Membuat permintaan…' : 'Saya sudah transfer — Konfirmasi →'}
+                </button>
+              </div>
+            )}
+
+            {/* ── Payment history ── */}
+            {payments.length > 0 && (
+              <Card>
+                <p className="text-xs font-semibold text-light-gray uppercase tracking-wider">Riwayat Pembayaran</p>
+                <div className="space-y-3">
+                  {payments.map(p => (
+                    <div key={p.id} className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-primary-dark">
+                          {p.plan_type === 'annual' ? 'Pro Annual' : 'Pro Monthly'} — Rp {fmtIDR(p.amount)}
+                        </p>
+                        <p className="text-xs text-light-gray mt-0.5">
+                          {new Date(p.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {p.rejection_note && <span className="text-error ml-2">· {p.rejection_note}</span>}
+                        </p>
+                      </div>
+                      {statusBadge(p.status)}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )
+      })()}
 
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />

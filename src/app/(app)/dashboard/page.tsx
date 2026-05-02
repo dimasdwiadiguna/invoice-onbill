@@ -63,7 +63,7 @@ function UpsellBanner({ used }: { used: number }) {
     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4">
       <div>
         <p className="text-sm font-semibold text-amber-800">
-          Kamu sudah pakai {used} dari 5 invoice gratis bulan ini.
+          Kamu sudah pakai {used} dari 3 invoice gratis.
         </p>
         <p className="text-xs text-amber-700 mt-0.5">
           Upgrade ke Pro untuk invoice unlimited dan fitur lengkap.
@@ -139,7 +139,7 @@ export default async function DashboardPage() {
     .is('deleted_at', null)
 
   const isFree      = profile?.plan === 'free'
-  const showUpsell  = isFree && (invoiceCount ?? 0) >= 4
+  const showUpsell  = isFree && (invoiceCount ?? 0) >= 2
   const hasInvoices = (recentInvoices?.length ?? 0) > 0
 
   const monthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })

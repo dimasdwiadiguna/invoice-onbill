@@ -10,14 +10,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('users')
-    .select('name, plan, onboarding_completed')
+    .select('name, plan, plan_expires_at, onboarding_completed')
     .eq('id', user.id)
     .single()
 
   if (!profile?.onboarding_completed) redirect('/onboarding')
 
+  // Auto-downgrade expired Pro — only writes once when expiry passes
+  let effectivePlan = profile.plan ?? 'free'
+  if (
+    effectivePlan === 'pro' &&
+    profile.plan_expires_at &&
+    new Date(profile.plan_expires_at) < new Date()
+  ) {
+    await supabase
+      .from('users')
+      .update({ plan: 'free', plan_expires_at: null })
+      .eq('id', user.id)
+    effectivePlan = 'free'
+  }
+
   return (
-    <AppShell userName={profile.name || user.email || 'Pengguna'} userPlan={profile.plan ?? 'free'}>
+    <AppShell userName={profile.name || user.email || 'Pengguna'} userPlan={effectivePlan}>
       {children}
     </AppShell>
   )

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useScrollReveal } from '@/hooks/useScrollReveal'
 
 function CheckIcon() {
@@ -12,18 +13,17 @@ function CheckIcon() {
 }
 
 const FREE_FEATURES = [
-  '5 invoice per bulan',
+  '3 invoice (total)',
   '2 template profesi',
   'PPh 21 dasar',
-  '5 database klien',
+  '3 database klien',
   'Download PDF',
 ]
 
 const PRO_FEATURES = [
-  'Invoice unlimited',
+  'Invoice & klien unlimited',
   'Semua template profesi',
   'PPh 21 + PPh 23 + PPN lengkap',
-  'Database klien hingga 75 data',
   'Kirim invoice via email',
   'Status tracking (terkirim/dibaca)',
   'Rekap tahunan untuk SPT',
@@ -31,15 +31,19 @@ const PRO_FEATURES = [
 ]
 
 export default function PricingSection() {
+  const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
   const headerReveal = useScrollReveal(0.2)
   const cardsReveal  = useScrollReveal(0.1)
+
+  const proPrice  = billing === 'monthly' ? 'Rp 39.000' : 'Rp 390.000'
+  const proPeriod = billing === 'monthly' ? '/bulan' : '/tahun'
 
   return (
     <section id="harga" className="py-24 bg-light-cream">
       <div className="max-w-6xl mx-auto px-6">
 
         {/* Header */}
-        <div ref={headerReveal.ref} className="text-center mb-16">
+        <div ref={headerReveal.ref} className="text-center mb-10">
           <h2
             className="text-3xl lg:text-4xl font-extrabold text-primary-dark mb-4"
             style={headerReveal.visible
@@ -54,9 +58,48 @@ export default function PricingSection() {
               ? { animation: 'fadeInUp 0.55s 0.12s ease both' }
               : { opacity: 0 }}
           >
-            Upgrade kalau sudah perlu lebih, hanya{' '}
-            <span className="font-semibold text-primary-dark">Rp&nbsp;29.000/bulan</span>
+            Upgrade kalau sudah perlu lebih — mulai dari{' '}
+            <span className="font-semibold text-primary-dark">Rp&nbsp;39.000/bulan</span>
           </p>
+        </div>
+
+        {/* Billing toggle */}
+        <div
+          className="flex justify-center mb-12"
+          style={headerReveal.visible ? { animation: 'fadeInUp 0.55s 0.2s ease both' } : { opacity: 0 }}
+        >
+          <div className="inline-flex items-center bg-white border border-border rounded-xl p-1 gap-1">
+            <button
+              onClick={() => setBilling('monthly')}
+              className={[
+                'px-4 py-2 rounded-lg text-sm font-semibold transition-all',
+                billing === 'monthly'
+                  ? 'bg-primary-teal text-white shadow-sm'
+                  : 'text-medium-gray hover:text-primary-dark',
+              ].join(' ')}
+            >
+              Bulanan
+            </button>
+            <button
+              onClick={() => setBilling('annual')}
+              className={[
+                'px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2',
+                billing === 'annual'
+                  ? 'bg-primary-teal text-white shadow-sm'
+                  : 'text-medium-gray hover:text-primary-dark',
+              ].join(' ')}
+            >
+              Tahunan
+              <span className={[
+                'text-xs font-bold px-1.5 py-0.5 rounded-full',
+                billing === 'annual'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-success/15 text-success',
+              ].join(' ')}>
+                2 bulan gratis
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Cards */}
@@ -78,7 +121,7 @@ export default function PricingSection() {
             </p>
             <div className="mb-6">
               <span className="text-4xl font-extrabold text-primary-dark">Rp&nbsp;0</span>
-              <span className="text-medium-gray text-sm ml-1">/bulan</span>
+              <span className="text-medium-gray text-sm ml-1">/selamanya</span>
             </div>
 
             <ul className="space-y-3 mb-8">
@@ -119,10 +162,14 @@ export default function PricingSection() {
             <p className="text-sm font-semibold text-primary-teal uppercase tracking-wider mb-4">
               Pro
             </p>
-            <div className="mb-6">
-              <span className="text-4xl font-extrabold text-primary-teal">Rp&nbsp;29.000</span>
-              <span className="text-medium-gray text-sm ml-1">/bulan</span>
+            <div className="mb-1">
+              <span className="text-4xl font-extrabold text-primary-teal">{proPrice}</span>
+              <span className="text-medium-gray text-sm ml-1">{proPeriod}</span>
             </div>
+            {billing === 'annual' && (
+              <p className="text-xs text-success font-semibold mb-5">Hemat Rp&nbsp;78.000 vs bulanan</p>
+            )}
+            {billing === 'monthly' && <div className="mb-5" />}
 
             <ul className="space-y-3 mb-8">
               {PRO_FEATURES.map(f => (
@@ -134,16 +181,16 @@ export default function PricingSection() {
             </ul>
 
             <a
-              href="/register?plan=pro"
+              href="/register"
               className="block w-full text-center font-semibold text-sm text-white
                          bg-primary-teal rounded-xl px-6 py-3
                          hover:bg-primary-teal/90 transition-all duration-200
                          shadow-lg shadow-primary-teal/25"
             >
-              Coba Pro Gratis 14 Hari
+              Mulai Gratis, Upgrade Nanti
             </a>
             <p className="text-center text-xs text-light-gray mt-3">
-              Tidak perlu kartu kredit
+              Bayar via transfer bank · diaktifkan manual
             </p>
           </div>
         </div>
