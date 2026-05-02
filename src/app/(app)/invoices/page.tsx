@@ -71,6 +71,7 @@ export default function InvoicesPage() {
   const [monthCount,   setMonthCount]   = useState(0)
   const [toast,        setToast]        = useState<ToastState>(null)
   const [showBuilder,  setShowBuilder]  = useState(false)
+  const [builderTour,  setBuilderTour]  = useState(false)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -125,6 +126,15 @@ export default function InvoicesPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  /* Auto-open builder in tour mode when ?tour=1 is in the URL */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tour') === '1') {
+      setBuilderTour(true)
+      setShowBuilder(true)
+    }
+  }, [])
 
   /* Filter + sort */
   const filtered = invoices
@@ -371,8 +381,9 @@ export default function InvoicesPage() {
 
       {showBuilder && (
         <InvoiceBuilderModal
-          onClose={() => setShowBuilder(false)}
-          onCreated={newId => { setShowBuilder(false); router.push(`/invoices/${newId}`) }}
+          onClose={() => { setShowBuilder(false); setBuilderTour(false) }}
+          onCreated={newId => { setShowBuilder(false); setBuilderTour(false); router.push(`/invoices/${newId}`) }}
+          tourMode={builderTour}
         />
       )}
     </div>

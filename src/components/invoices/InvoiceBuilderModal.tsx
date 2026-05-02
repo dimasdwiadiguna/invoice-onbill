@@ -19,7 +19,7 @@ type ClientEntry   = { id: string | null; name: string; address: string; npwp: s
 type ToastState    = { message: string; type: 'error' | 'success' } | null
 type DBClient      = { id: string; name: string; address: string | null; npwp: string | null; pic_name: string | null; pic_email: string | null; entity_type: ClientEntityType | null }
 
-export type Props = { onClose: () => void; onCreated: (invoiceId: string) => void }
+export type Props = { onClose: () => void; onCreated: (invoiceId: string) => void; tourMode?: boolean }
 
 /* ─── Constants ──────────────────────────────────────────────── */
 const TEMPLATES: { id: TemplateId; label: string; desc: string; pro: boolean }[] = [
@@ -229,14 +229,67 @@ function InvoicePreview({
   )
 }
 
+/* ─── Tour tip definitions per step ─────────────────────────── */
+const INVOICE_TOUR_TIPS: Record<number, { title: string; body: string }> = {
+  1: {
+    title: 'Pilih template jasamu',
+    body: 'Template menentukan field info tambahan yang relevan. Misalnya template IT & Software akan minta nama project dan milestone. Pilih yang paling sesuai dengan pekerjaanmu.',
+  },
+  2: {
+    title: 'Data klien',
+    body: 'Cari klien yang sudah tersimpan, atau ketik langsung untuk klien baru. Tipe entitas klien penting — badan usaha akan memotong PPh, perorangan tidak.',
+  },
+  3: {
+    title: 'Item jasa yang ditagihkan',
+    body: 'Tambahkan satu atau lebih item dengan deskripsi, qty, dan harga. Kamu bisa tambah baris untuk jasa berbeda. Subtotal dihitung otomatis.',
+  },
+  4: {
+    title: 'Kalkulasi pajak otomatis',
+    body: 'Ini yang membedakan onbill — pajak dihitung otomatis berdasarkan profil pajakmu dan tipe klien. Kamu tidak perlu hitung manual. Cek angka yang kamu terima bersih.',
+  },
+  5: {
+    title: 'Finalisasi invoice',
+    body: 'Nomor invoice digenerate otomatis berurutan. Kamu bisa simpan sebagai Draft dulu, atau langsung Finalisasi untuk mengirim ke klien.',
+  },
+}
+
+/* ─── Tour tip card ──────────────────────────────────────────── */
+function TourTip({ step, onDismiss }: { step: number; onDismiss: () => void }) {
+  const tip = INVOICE_TOUR_TIPS[step]
+  if (!tip) return null
+  return (
+    <div className="flex items-start gap-3 bg-subtle-teal border border-primary-teal/25 rounded-2xl px-4 py-3.5 mb-5">
+      <div className="w-7 h-7 rounded-xl bg-primary-teal/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <svg className="w-3.5 h-3.5 text-primary-teal" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z"/>
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-primary-teal mb-0.5">{tip.title}</p>
+        <p className="text-xs text-medium-gray leading-relaxed">{tip.body}</p>
+      </div>
+      <button
+        onClick={onDismiss}
+        className="flex-shrink-0 text-light-gray hover:text-medium-gray transition-colors mt-0.5"
+        aria-label="Tutup panduan"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+        </svg>
+      </button>
+    </div>
+  )
+}
+
 /* ─── Main Modal ─────────────────────────────────────────────── */
-export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
+export function InvoiceBuilderModal({ onClose, onCreated, tourMode = false }: Props) {
   const router = useRouter()
 
   const [initLoading,  setInitLoading]  = useState(true)
   const [limitReached, setLimitReached] = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [toast,        setToast]        = useState<ToastState>(null)
+  const [tourActive,   setTourActive]   = useState(tourMode)
 
   const [userId,      setUserId]      = useState<string | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile & { plan: string; name: string; invoice_prefix: string | null }>({
@@ -405,6 +458,9 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
   /* ── Step content (shared, no nav buttons) ── */
   const stepContent = (
     <div className="space-y-5">
+      {/* Tour tip for this step */}
+      {tourActive && <TourTip step={step} onDismiss={() => setTourActive(false)} />}
+
       {/* Step header — shown in scroll area so it scrolls away on mobile to give more room */}
       <div>
         <h3 className="text-lg font-bold text-primary-dark">{STEP_TITLES[step - 1].title}</h3>
@@ -758,6 +814,11 @@ export function InvoiceBuilderModal({ onClose, onCreated }: Props) {
             <h2 className="text-base font-bold text-primary-dark whitespace-nowrap">Invoice Baru</h2>
             {/* Mobile: step counter text */}
             <span className="sm:hidden text-xs text-medium-gray">Langkah {step}/5</span>
+            {tourActive && (
+              <span className="hidden sm:inline text-xs bg-primary-teal/10 text-primary-teal font-semibold px-2 py-0.5 rounded-full">
+                Panduan aktif
+              </span>
+            )}
           </div>
 
           {/* Desktop: step bubbles */}

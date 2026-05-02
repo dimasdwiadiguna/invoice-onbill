@@ -81,12 +81,22 @@ export default function OnboardingPage() {
   const [checking,    setChecking]    = useState(true)
   const [userId,      setUserId]      = useState<string | null>(null)
   const [step,        setStep]        = useState(1)
+
+  /* Step 1 — profile */
+  const [name,        setName]        = useState('')
+  const [address,     setAddress]     = useState('')
+  const [nameError,   setNameError]   = useState('')
+
+  /* Step 2 — entity type */
   const [entityType,  setEntityType]  = useState<EntityType | null>(null)
+
+  /* Step 3 — tax config */
   const [hasNpwp,     setHasNpwp]     = useState<boolean | null>(null)
   const [npwpRaw,     setNpwpRaw]     = useState('')
   const [npwpDisplay, setNpwpDisplay] = useState('')
   const [npwpError,   setNpwpError]   = useState('')
   const [isPkp,       setIsPkp]       = useState<boolean | null>(null)
+
   const [saving,      setSaving]      = useState(false)
   const [toast,       setToast]       = useState<ToastState>(null)
 
@@ -118,6 +128,16 @@ export default function OnboardingPage() {
     setNpwpError(raw.length > 0 && raw.length < 15 ? 'Nomor NPWP harus 15 digit.' : '')
   }
 
+  function handleStep1Next() {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setNameError('Nama wajib diisi.')
+      return
+    }
+    setNameError('')
+    setStep(2)
+  }
+
   async function handleFinish() {
     if (!entityType || !userId) return
 
@@ -135,10 +155,12 @@ export default function OnboardingPage() {
 
     const supabase = createClient()
     const patch: Record<string, unknown> = {
-      entity_type: entityType,
-      has_npwp: entityType === 'individual' ? (hasNpwp ?? false) : false,
-      npwp_number: entityType === 'individual' && hasNpwp ? npwpRaw : null,
-      is_pkp: entityType !== 'individual' ? (isPkp ?? false) : false,
+      name:           name.trim(),
+      address:        address.trim() || null,
+      entity_type:    entityType,
+      has_npwp:       entityType === 'individual' ? (hasNpwp ?? false) : false,
+      npwp_number:    entityType === 'individual' && hasNpwp ? npwpRaw : null,
+      is_pkp:         entityType !== 'individual' ? (isPkp ?? false) : false,
       onboarding_completed: true,
     }
 
@@ -163,8 +185,8 @@ export default function OnboardingPage() {
     )
   }
 
-  const isStep1Done = entityType !== null
-  const isStep2Done = entityType === 'individual'
+  const isStep2Done = entityType !== null
+  const isStep3Done = entityType === 'individual'
     ? hasNpwp !== null && (!hasNpwp || npwpRaw.length === 15)
     : isPkp !== null
 
@@ -179,13 +201,70 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md bg-white rounded-2xl border border-border shadow-sm px-8 py-10">
         {/* Step label */}
         <p className="text-xs font-semibold text-light-gray text-center uppercase tracking-widest mb-3">
-          Langkah {step} dari 2
+          Langkah {step} dari 3
         </p>
 
-        <StepDots current={step - 1} total={2} />
+        <StepDots current={step - 1} total={3} />
 
-        {/* ── Step 1 ──────────────────────────────────────────── */}
+        {/* ── Step 1: Profile ─────────────────────────────────── */}
         {step === 1 && (
+          <>
+            <h1 className="text-xl font-bold text-primary-dark text-center mb-2">
+              Kenalan dulu, yuk!
+            </h1>
+            <p className="text-sm text-medium-gray text-center mb-8">
+              Nama dan alamatmu akan muncul di setiap invoice yang kamu buat.
+            </p>
+
+            <div className="space-y-4 mb-8">
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-primary-dark mb-1.5">
+                  Nama lengkap / nama usaha <span className="text-error">*</span>
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={e => { setName(e.target.value); if (nameError) setNameError('') }}
+                  placeholder="Ahmad Rizky / Studio Kreasi"
+                  className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark
+                              placeholder:text-light-gray outline-none transition-colors
+                              ${nameError ? 'border-error focus:border-error' : 'border-border focus:border-primary-teal'}`}
+                />
+                {nameError && <p className="text-xs text-error mt-1">{nameError}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="address" className="block text-sm font-medium text-primary-dark mb-1.5">
+                  Alamat <span className="text-light-gray font-normal">(opsional)</span>
+                </label>
+                <textarea
+                  id="address"
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                  placeholder="Jl. Sudirman No. 1, Jakarta Pusat"
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
+                             placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors resize-none"
+                />
+                <p className="text-xs text-light-gray mt-1">
+                  Alamat muncul di invoice sebagai identitas pengirim.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleStep1Next}
+              className="w-full bg-primary-teal text-white font-semibold text-sm py-3 rounded-xl
+                         hover:bg-primary-teal/90 transition-all"
+            >
+              Lanjut →
+            </button>
+          </>
+        )}
+
+        {/* ── Step 2: Entity type ──────────────────────────────── */}
+        {step === 2 && (
           <>
             <h1 className="text-xl font-bold text-primary-dark text-center mb-2">
               Kamu invoice sebagai apa?
@@ -211,19 +290,28 @@ export default function OnboardingPage() {
               />
             </div>
 
-            <button
-              onClick={() => isStep1Done && setStep(2)}
-              disabled={!isStep1Done}
-              className="w-full bg-primary-teal text-white font-semibold text-sm py-3 rounded-xl
-                         hover:bg-primary-teal/90 disabled:opacity-40 transition-all"
-            >
-              Lanjut →
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-1 border border-border text-medium-gray font-semibold text-sm py-3
+                           rounded-xl hover:border-primary-teal hover:text-primary-teal transition-all"
+              >
+                ← Kembali
+              </button>
+              <button
+                onClick={() => isStep2Done && setStep(3)}
+                disabled={!isStep2Done}
+                className="flex-1 bg-primary-teal text-white font-semibold text-sm py-3 rounded-xl
+                           hover:bg-primary-teal/90 disabled:opacity-40 transition-all"
+              >
+                Lanjut →
+              </button>
+            </div>
           </>
         )}
 
-        {/* ── Step 2: individual ──────────────────────────────── */}
-        {step === 2 && entityType === 'individual' && (
+        {/* ── Step 3: individual tax ───────────────────────────── */}
+        {step === 3 && entityType === 'individual' && (
           <>
             <h1 className="text-xl font-bold text-primary-dark text-center mb-2">
               Apakah kamu punya NPWP?
@@ -276,7 +364,7 @@ export default function OnboardingPage() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="flex-1 border border-border text-medium-gray font-semibold text-sm py-3
                            rounded-xl hover:border-primary-teal hover:text-primary-teal transition-all"
               >
@@ -284,7 +372,7 @@ export default function OnboardingPage() {
               </button>
               <button
                 onClick={handleFinish}
-                disabled={!isStep2Done || saving}
+                disabled={!isStep3Done || saving}
                 className="flex-1 bg-primary-teal text-white font-semibold text-sm py-3 rounded-xl
                            hover:bg-primary-teal/90 disabled:opacity-40 transition-all"
               >
@@ -294,8 +382,8 @@ export default function OnboardingPage() {
           </>
         )}
 
-        {/* ── Step 2: perusahaan ──────────────────────────────── */}
-        {step === 2 && (entityType === 'cv' || entityType === 'pt') && (
+        {/* ── Step 3: perusahaan tax ───────────────────────────── */}
+        {step === 3 && (entityType === 'cv' || entityType === 'pt') && (
           <>
             <h1 className="text-xl font-bold text-primary-dark text-center mb-2">
               Apakah usahamu sudah PKP?
@@ -321,7 +409,7 @@ export default function OnboardingPage() {
               />
             </div>
 
-            {/* Tooltip info */}
+            {/* Info tooltip */}
             <div className="flex items-start gap-2 bg-subtle-teal rounded-xl px-4 py-3 mb-6">
               <svg className="w-4 h-4 text-primary-teal flex-shrink-0 mt-0.5" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z"/>
@@ -335,7 +423,7 @@ export default function OnboardingPage() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="flex-1 border border-border text-medium-gray font-semibold text-sm py-3
                            rounded-xl hover:border-primary-teal hover:text-primary-teal transition-all"
               >
@@ -343,7 +431,7 @@ export default function OnboardingPage() {
               </button>
               <button
                 onClick={handleFinish}
-                disabled={!isStep2Done || saving}
+                disabled={!isStep3Done || saving}
                 className="flex-1 bg-primary-teal text-white font-semibold text-sm py-3 rounded-xl
                            hover:bg-primary-teal/90 disabled:opacity-40 transition-all"
               >
