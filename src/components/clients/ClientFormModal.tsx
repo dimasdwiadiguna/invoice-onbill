@@ -31,13 +31,112 @@ const ENTITY_OPTIONS: { value: ClientEntityType; label: string; desc: string }[]
   { value: 'perorangan',  label: 'Perorangan',   desc: 'Individu / UMKM tanpa badan hukum' },
 ]
 
+/* ─── Tour step definitions ──────────────────────────────────── */
+const TOUR_STEPS = [
+  {
+    title: 'Siapa klienmu?',
+    body: 'Tipe entitas menentukan jenis pajak yang berlaku. Badan usaha (PT/CV) dikenakan PPh 23, sedangkan perorangan tidak memotong PPh.',
+    section: 'entity',
+  },
+  {
+    title: 'Data utama klien',
+    body: 'Nama dan alamat ini akan muncul di invoice. Masukkan nama resmi perusahaan atau individu sesuai dokumen legalnya.',
+    section: 'main',
+  },
+  {
+    title: 'Siapa yang dihubungi?',
+    body: 'PIC (Person in Charge) adalah orang yang menerima invoice. Email PIC akan dipakai untuk mengirim invoice langsung ke mereka.',
+    section: 'pic',
+  },
+  {
+    title: 'Catatan internal',
+    body: 'Catatan ini hanya bisa kamu lihat — tidak muncul di invoice. Cocok untuk menyimpan terms pembayaran atau instruksi khusus.',
+    section: 'notes',
+  },
+] as const
+
+type TourSection = typeof TOUR_STEPS[number]['section']
+
+/* ─── Tour banner ────────────────────────────────────────────── */
+function TourBanner({
+  step,
+  total,
+  title,
+  body,
+  onNext,
+  onSkip,
+}: {
+  step: number
+  total: number
+  title: string
+  body: string
+  onNext: () => void
+  onSkip: () => void
+}) {
+  return (
+    <div className="mx-6 mt-5 mb-1 bg-subtle-teal border border-primary-teal/25 rounded-2xl px-5 py-4">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-primary-teal bg-primary-teal/10 px-2 py-0.5 rounded-full">
+            Panduan {step}/{total}
+          </span>
+          <p className="text-sm font-bold text-primary-dark">{title}</p>
+        </div>
+        <button
+          onClick={onSkip}
+          className="text-xs text-medium-gray hover:text-primary-dark transition-colors flex-shrink-0"
+        >
+          Lewati
+        </button>
+      </div>
+      <p className="text-xs text-medium-gray leading-relaxed mb-3">{body}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {Array.from({ length: total }, (_, i) => (
+            <div
+              key={i}
+              className={`h-1 rounded-full transition-all ${i < step ? 'w-4 bg-primary-teal' : 'w-1.5 bg-border'}`}
+            />
+          ))}
+        </div>
+        <button
+          onClick={onNext}
+          className="text-xs font-bold text-white bg-primary-teal hover:bg-primary-teal/90
+                     px-3 py-1.5 rounded-lg transition-all"
+        >
+          {step < total ? 'Lanjut →' : 'Selesai ✓'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Highlight wrapper ──────────────────────────────────────── */
+function TourSection({
+  active,
+  children,
+}: {
+  active: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className={[
+      'rounded-xl transition-all duration-300',
+      active ? 'ring-2 ring-primary-teal/50 ring-offset-2 bg-subtle-teal/20' : '',
+    ].join(' ')}>
+      {children}
+    </div>
+  )
+}
+
 type Props = {
   clientId: string | null  // null = new client, string = edit existing
   onClose: () => void
   onSaved: (id: string) => void
+  tourMode?: boolean
 }
 
-export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
+export function ClientFormModal({ clientId, onClose, onSaved, tourMode = false }: Props) {
   const isNew = clientId === null
 
   const [form,     setForm]     = useState<FormState>(EMPTY)
@@ -48,6 +147,12 @@ export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [toast,    setToast]    = useState<ToastState>(null)
   const [userId,   setUserId]   = useState<string | null>(null)
+
+  /* Tour state: 0 = tour complete/dismissed, 1..4 = active step */
+  const [tourStep, setTourStep] = useState(tourMode ? 1 : 0)
+  const activeTourSection: TourSection | null = tourStep > 0
+    ? TOUR_STEPS[tourStep - 1].section
+    : null
 
   useEffect(() => {
     async function init() {
@@ -178,7 +283,14 @@ export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
 
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-bold text-primary-dark">{title}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-primary-dark">{title}</h2>
+            {tourMode && tourStep > 0 && (
+              <span className="text-xs bg-primary-teal/10 text-primary-teal font-semibold px-2 py-0.5 rounded-full">
+                Panduan aktif
+              </span>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-light-gray hover:text-primary-dark hover:bg-very-light-gray transition-colors"
@@ -197,132 +309,159 @@ export function ClientFormModal({ clientId, onClose, onSaved }: Props) {
               <div className="w-6 h-6 rounded-full border-2 border-primary-teal border-t-transparent animate-spin"/>
             </div>
           ) : (
-            <div className="p-6 space-y-5">
-
-              {/* Entity type */}
-              <div>
-                <label className="block text-sm font-medium text-primary-dark mb-2">
-                  Tipe entitas klien <span className="text-error">*</span>
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {ENTITY_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => set('entity_type', opt.value)}
-                      className={[
-                        'text-left px-4 py-3 rounded-xl border-2 transition-all',
-                        form.entity_type === opt.value
-                          ? 'border-primary-teal bg-subtle-teal'
-                          : 'border-border bg-white hover:border-primary-teal/50',
-                      ].join(' ')}
-                    >
-                      <p className="text-sm font-semibold text-primary-dark">{opt.label}</p>
-                      <p className="text-xs text-medium-gray mt-0.5">{opt.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-border"/>
-
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-primary-dark mb-1.5">
-                  Nama perusahaan / individu <span className="text-error">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => set('name', e.target.value)}
-                  placeholder="PT Maju Bersama / Budi Santoso"
-                  className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark
-                              placeholder:text-light-gray outline-none transition-colors
-                              ${errors.name ? 'border-error' : 'border-border focus:border-primary-teal'}`}
+            <>
+              {/* Tour banner — shown above the form when tour is active */}
+              {tourStep > 0 && (
+                <TourBanner
+                  step={tourStep}
+                  total={TOUR_STEPS.length}
+                  title={TOUR_STEPS[tourStep - 1].title}
+                  body={TOUR_STEPS[tourStep - 1].body}
+                  onNext={() => setTourStep(s => s < TOUR_STEPS.length ? s + 1 : 0)}
+                  onSkip={() => setTourStep(0)}
                 />
-                {errors.name && <p className="text-xs text-error mt-1">{errors.name}</p>}
+              )}
+
+              <div className="p-6 space-y-5">
+
+                {/* Entity type */}
+                <TourSection active={activeTourSection === 'entity'}>
+                  <div className={activeTourSection === 'entity' ? 'p-3' : ''}>
+                    <label className="block text-sm font-medium text-primary-dark mb-2">
+                      Tipe entitas klien <span className="text-error">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {ENTITY_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => set('entity_type', opt.value)}
+                          className={[
+                            'text-left px-4 py-3 rounded-xl border-2 transition-all',
+                            form.entity_type === opt.value
+                              ? 'border-primary-teal bg-subtle-teal'
+                              : 'border-border bg-white hover:border-primary-teal/50',
+                          ].join(' ')}
+                        >
+                          <p className="text-sm font-semibold text-primary-dark">{opt.label}</p>
+                          <p className="text-xs text-medium-gray mt-0.5">{opt.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </TourSection>
+
+                <div className="border-t border-border"/>
+
+                {/* Name + Address + NPWP */}
+                <TourSection active={activeTourSection === 'main'}>
+                  <div className={`space-y-4 ${activeTourSection === 'main' ? 'p-3' : ''}`}>
+                    {/* Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-primary-dark mb-1.5">
+                        Nama perusahaan / individu <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={form.name}
+                        onChange={e => set('name', e.target.value)}
+                        placeholder="PT Maju Bersama / Budi Santoso"
+                        className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark
+                                    placeholder:text-light-gray outline-none transition-colors
+                                    ${errors.name ? 'border-error' : 'border-border focus:border-primary-teal'}`}
+                      />
+                      {errors.name && <p className="text-xs text-error mt-1">{errors.name}</p>}
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                      <label className="block text-sm font-medium text-primary-dark mb-1.5">Alamat lengkap</label>
+                      <textarea
+                        value={form.address}
+                        onChange={e => set('address', e.target.value)}
+                        placeholder="Jl. Sudirman No. 1, Jakarta Pusat"
+                        rows={3}
+                        className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
+                                   placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors resize-none"
+                      />
+                    </div>
+
+                    {/* NPWP */}
+                    <div>
+                      <label className="block text-sm font-medium text-primary-dark mb-1.5">
+                        NPWP <span className="text-light-gray font-normal">(opsional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={form.npwpDisplay}
+                        onChange={handleNpwpChange}
+                        placeholder="00.000.000.0-000.000"
+                        className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark font-mono
+                                    placeholder:text-light-gray placeholder:font-sans outline-none transition-colors
+                                    ${errors.npwp ? 'border-error' : 'border-border focus:border-primary-teal'}`}
+                      />
+                      {errors.npwp && <p className="text-xs text-error mt-1">{errors.npwp}</p>}
+                      {!errors.npwp && form.npwp.length === 15 && (
+                        <p className="text-xs text-success mt-1">NPWP valid ✓</p>
+                      )}
+                    </div>
+                  </div>
+                </TourSection>
+
+                <div className="border-t border-border"/>
+
+                {/* PIC */}
+                <TourSection active={activeTourSection === 'pic'}>
+                  <div className={activeTourSection === 'pic' ? 'p-3' : ''}>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-primary-dark mb-1.5">Nama PIC</label>
+                        <input
+                          type="text"
+                          value={form.pic_name}
+                          onChange={e => set('pic_name', e.target.value)}
+                          placeholder="Nama contact person"
+                          className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
+                                     placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-primary-dark mb-1.5">Email PIC</label>
+                        <input
+                          type="email"
+                          value={form.pic_email}
+                          onChange={e => set('pic_email', e.target.value)}
+                          placeholder="finance@perusahaan.com"
+                          className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark
+                                      placeholder:text-light-gray outline-none transition-colors
+                                      ${errors.pic_email ? 'border-error' : 'border-border focus:border-primary-teal'}`}
+                        />
+                        {errors.pic_email && <p className="text-xs text-error mt-1">{errors.pic_email}</p>}
+                      </div>
+                    </div>
+                  </div>
+                </TourSection>
+
+                {/* Internal notes */}
+                <TourSection active={activeTourSection === 'notes'}>
+                  <div className={activeTourSection === 'notes' ? 'p-3' : ''}>
+                    <label className="block text-sm font-medium text-primary-dark mb-1.5">
+                      Catatan internal <span className="text-light-gray font-normal">(tidak tampil di invoice)</span>
+                    </label>
+                    <textarea
+                      value={form.internal_notes}
+                      onChange={e => set('internal_notes', e.target.value)}
+                      placeholder="Misal: NET 30, invoice dikirim ke finance dept…"
+                      rows={3}
+                      className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
+                                 placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors resize-none"
+                    />
+                  </div>
+                </TourSection>
+
               </div>
-
-              {/* Address */}
-              <div>
-                <label className="block text-sm font-medium text-primary-dark mb-1.5">Alamat lengkap</label>
-                <textarea
-                  value={form.address}
-                  onChange={e => set('address', e.target.value)}
-                  placeholder="Jl. Sudirman No. 1, Jakarta Pusat"
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
-                             placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors resize-none"
-                />
-              </div>
-
-              {/* NPWP */}
-              <div>
-                <label className="block text-sm font-medium text-primary-dark mb-1.5">
-                  NPWP <span className="text-light-gray font-normal">(opsional)</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.npwpDisplay}
-                  onChange={handleNpwpChange}
-                  placeholder="00.000.000.0-000.000"
-                  className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark font-mono
-                              placeholder:text-light-gray placeholder:font-sans outline-none transition-colors
-                              ${errors.npwp ? 'border-error' : 'border-border focus:border-primary-teal'}`}
-                />
-                {errors.npwp && <p className="text-xs text-error mt-1">{errors.npwp}</p>}
-                {!errors.npwp && form.npwp.length === 15 && (
-                  <p className="text-xs text-success mt-1">NPWP valid ✓</p>
-                )}
-              </div>
-
-              <div className="border-t border-border"/>
-
-              {/* PIC */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-primary-dark mb-1.5">Nama PIC</label>
-                  <input
-                    type="text"
-                    value={form.pic_name}
-                    onChange={e => set('pic_name', e.target.value)}
-                    placeholder="Nama contact person"
-                    className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
-                               placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-primary-dark mb-1.5">Email PIC</label>
-                  <input
-                    type="email"
-                    value={form.pic_email}
-                    onChange={e => set('pic_email', e.target.value)}
-                    placeholder="finance@perusahaan.com"
-                    className={`w-full px-4 py-2.5 rounded-xl border text-sm text-primary-dark
-                                placeholder:text-light-gray outline-none transition-colors
-                                ${errors.pic_email ? 'border-error' : 'border-border focus:border-primary-teal'}`}
-                  />
-                  {errors.pic_email && <p className="text-xs text-error mt-1">{errors.pic_email}</p>}
-                </div>
-              </div>
-
-              {/* Internal notes */}
-              <div>
-                <label className="block text-sm font-medium text-primary-dark mb-1.5">
-                  Catatan internal <span className="text-light-gray font-normal">(tidak tampil di invoice)</span>
-                </label>
-                <textarea
-                  value={form.internal_notes}
-                  onChange={e => set('internal_notes', e.target.value)}
-                  placeholder="Misal: NET 30, invoice dikirim ke finance dept…"
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-xl border border-border text-sm text-primary-dark
-                             placeholder:text-light-gray outline-none focus:border-primary-teal transition-colors resize-none"
-                />
-              </div>
-
-            </div>
+            </>
           )}
         </div>
 

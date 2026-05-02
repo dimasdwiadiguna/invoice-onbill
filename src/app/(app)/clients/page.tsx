@@ -66,6 +66,7 @@ export default function ClientsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null)
   const [modalClientId, setModalClientId] = useState<string | null | undefined>(undefined)
   // undefined = closed, null = new, string = edit
+  const [tourMode, setTourMode] = useState(false)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -102,6 +103,15 @@ export default function ClientsPage() {
 
   useEffect(() => { load() }, [load])
 
+  /* Auto-open modal in tour mode when ?tour=1 is in the URL */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tour') === '1') {
+      setTourMode(true)
+      setModalClientId(null)
+    }
+  }, [])
+
   async function handleDelete(client: Client) {
     const supabase = createClient()
     const { error } = await supabase
@@ -120,6 +130,7 @@ export default function ClientsPage() {
 
   function handleModalSaved(id: string) {
     setModalClientId(undefined)
+    setTourMode(false)
     if (id === 'deleted') {
       setToast({ message: 'Klien berhasil dihapus.', type: 'success' })
     } else if (modalClientId === null) {
@@ -268,8 +279,9 @@ export default function ClientsPage() {
       {modalClientId !== undefined && (
         <ClientFormModal
           clientId={modalClientId}
-          onClose={() => setModalClientId(undefined)}
+          onClose={() => { setModalClientId(undefined); setTourMode(false) }}
           onSaved={handleModalSaved}
+          tourMode={tourMode}
         />
       )}
     </div>

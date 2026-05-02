@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { StatusBadge } from '@/components/ui/Badge'
 import { formatRupiah } from '@/lib/tax'
+import { GetStartedCard } from '@/components/dashboard/GetStartedCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -123,9 +124,16 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
     .limit(5)
 
-  // Total invoice count (for upsell check)
+  // Total invoice count (for upsell check + checklist)
   const { count: invoiceCount } = await supabase
     .from('invoices')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+
+  // Client count (for checklist)
+  const { count: clientCount } = await supabase
+    .from('clients')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .is('deleted_at', null)
@@ -145,6 +153,12 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-sm text-medium-gray mt-1">Ringkasan aktivitas kamu bulan {monthLabel}.</p>
       </div>
+
+      {/* Get started checklist — only shown to new users, dismissed via localStorage */}
+      <GetStartedCard
+        hasClients={(clientCount ?? 0) > 0}
+        hasInvoices={(invoiceCount ?? 0) > 0}
+      />
 
       {/* Upsell banner */}
       {showUpsell && <UpsellBanner used={invoiceCount ?? 0} />}
