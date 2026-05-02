@@ -171,7 +171,7 @@ export default function ReportsPage() {
 
     setPlan(profileData?.plan ?? 'free')
     setIsPkp(profileData?.is_pkp ?? false)
-    setInvoices((invData ?? []) as Invoice[])
+    setInvoices((invData ?? []) as unknown as Invoice[])
     setLoading(false)
   }, [])
 
